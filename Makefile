@@ -1,4 +1,4 @@
-PREFIX := riscv64-elf-
+PREFIX := riscv64-linux-gnu-
 CC := $(PREFIX)gcc
 LD := $(PREFIX)ld
 AS := $(PREFIX)as
@@ -6,7 +6,7 @@ GDB := $(PREFIX)gdb
 OBJCOPY := $(PREFIX)objcopy
 
 QEMU := qemu-system-riscv64
-QEMUOPTS := -machine virt -smp 4 -m 4G
+QEMUOPTS := -machine virt -smp 4 -m 4G -nographic
 ifdef DEBUG
 QEMUOPTS += -s -S
 endif
@@ -52,4 +52,4 @@ gdb: $(KERNEL_ELF)
 	$(KERNEL_ELF)
 	
 clean:
-	rm -f $(KERNEL_ELF) $(KERNEL_BIN) $(KERNEL_OBJS)
+	rm -f $(KERNEL_ELF) *.img $(KERNEL)/*.o

@@ -3,6 +3,6 @@
 void printk(const char *fmt) {
     const char *ptr = fmt;
     while (*ptr != '\0') {
-        kputc(*ptr);
+        kputc(*ptr++);
     }
 }
