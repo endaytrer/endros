@@ -2,7 +2,8 @@ PREFIX := riscv64-linux-gnu-
 CC := $(PREFIX)gcc
 LD := $(PREFIX)ld
 AS := $(PREFIX)as
-GDB := $(PREFIX)gdb
+AR := $(PREFIX)ar
+GDB := gdb-multiarch
 OBJCOPY := $(PREFIX)objcopy
 
 QEMU := qemu-system-riscv64
@@ -13,6 +14,7 @@ endif
 
 CFLAGS := -ffreestanding -nostdlib -fno-omit-frame-pointer -g -O0
 
+# Kernel
 KERNEL := kernel
 KERNEL_C_SRCS := $(wildcard $(KERNEL)/*.c)
 KERNEL_C_HDRS := $(wildcard $(KERNEL)/*.h)
@@ -24,10 +26,48 @@ KERNEL_OBJS += $(patsubst $(KERNEL)/%.S, $(KERNEL)/%.o, $(KERNEL_ASM_SRCS))
 KERNEL_ELF := coreos
 KERNEL_BIN := coreos.img
 KERNEL_LINKER_SCRIPT := kernel.ld
+USER_LINKER_SCRIPT := user.ld
 
-.PHONY: all clean qemu
+# User Library and Binary
 
-all: $(KERNEL_BIN)
+USER := user
+USER_LIB := $(USER)/libcoreos
+USER_BIN := $(USER)/program
+
+USER_LIB_C_SRCS := $(wildcard $(USER_LIB)/*.c)
+USER_LIB_C_HDRS := $(wildcard $(USER_LIB)/*.h)
+USER_LIB_ASM_SRCS := $(wildcard $(USER_LIB)/*.S)
+
+USER_LIB_OBJS := $(patsubst $(USER_LIB)/%.c, $(USER_LIB)/%.o, $(USER_LIB_C_SRCS))
+USER_LIB_OBJS += $(patsubst $(USER_LIB)/%.S, $(USER_LIB)/%.o, $(USER_LIB_ASM_SRCS))
+
+USER_BIN_SRCS := $(wildcard $(USER_BIN)/*.c)
+USER_BIN_OBJS := $(patsubst $(USER_BIN)/%.c, $(USER_BIN)/%.o, $(USER_BIN_SRCS))
+
+
+# File System
+
+ROOTFS := rootfs
+BIN_DST := $(ROOTFS)/bin
+LIB_DST := $(ROOTFS)/lib
+INCLUDE_DST := $(ROOTFS)/include
+
+USER_EXES := $(patsubst $(USER_BIN)/%.o, $(BIN_DST)/%, $(USER_BIN_OBJS))
+
+# temporary single user binary image
+USER_BINS := $(patsubst $(BIN_DST)/%, %.img, $(USER_EXES))
+
+USER_LIB_STATIC := $(LIB_DST)/libcoreos.a
+USER_LIB_DYNAMIC := $(LIB_DST)/libcoreos.so
+USER_HDRS := $(patsubst $(USER_LIB)/%.h, $(INCLUDE_DST)/%.h, $(USER_LIB_C_HDRS))
+
+
+
+# Compiling kernel
+
+.PHONY: all clean qemu libcoreos user
+
+all: $(USER_LIB_STATIC) $(USER_LIB_DYNAMIC) $(USER_HDRS) $(USER_EXES) $(USER_BINS) $(KERNEL_BIN)
 
 $(KERNEL_BIN): $(KERNEL_ELF)
 	$(OBJCOPY) $^ -O binary $@
@@ -35,11 +75,51 @@ $(KERNEL_BIN): $(KERNEL_ELF)
 $(KERNEL_ELF): $(KERNEL_OBJS) $(KERNEL_LINKER_SCRIPT)
 	$(LD) $(LDFLAGS) -T $(KERNEL_LINKER_SCRIPT) -o $@ $(KERNEL_OBJS)
 
-%.o: %.c
+$(KERNEL)/%.o: $(KERNEL)/%.c
 	$(CC) $(CFLAGS) -c -o $@ $^
 
-%.o: %.S
+$(KERNEL)/%.o: $(KERNEL)/%.S
 	$(AS) $(ASFLAGS) -c -o $@ $^
+
+
+
+# User library
+
+libcoreos: $(USER_LIB_STATIC) $(USER_LIB_DYNAMIC)
+
+$(USER_LIB_STATIC): $(USER_LIB_OBJS)
+	$(AR) rcs $@ $^
+
+$(USER_LIB_DYNAMIC): $(USER_LIB_OBJS)
+	$(CC) -shared $(CFLAGS) -o $@ $^
+
+$(USER_LIB)/%.o: $(USER_LIB)/%.c
+	$(CC) -fPIC $(CFLAGS) -c -o $@ $^
+
+$(USER_LIB)/%.o: $(USER_LIB)/%.S
+	$(AS) -fPIC $(ASFLAGS) -c -o $@ $^
+
+$(INCLUDE_DST)/%.h: $(USER_LIB)/%.h
+	cp $^ $@
+
+
+
+# User programs
+user: $(USER_EXES) $(USER_BINS)
+
+# ! temporary rule for making user binary imges
+%.img: $(BIN_DST)/%
+	$(OBJCOPY) $^ -O binary $@
+
+$(BIN_DST)/%: $(USER_BIN)/%.o $(USER_LIB_STATIC)
+	$(LD) $(LDFLAGS) -T $(USER_LINKER_SCRIPT) -o $@ $^
+
+$(USER_BIN)/%.o: $(USER_BIN)/%.c $(USER_HDRS)
+	$(CC) $(CFLAGS) -I$(INCLUDE_DST) -c -o $@ $<
+
+
+
+# Emulation
 
 qemu: $(KERNEL_BIN)
 	$(QEMU) $(QEMUOPTS) -kernel $(KERNEL_BIN)
@@ -51,5 +131,14 @@ gdb: $(KERNEL_ELF)
 	-ex 'c' \
 	$(KERNEL_ELF)
 	
+
+# clean
 clean:
-	rm -f $(KERNEL_ELF) *.img $(KERNEL)/*.o
+	rm -f $(KERNEL_ELF) \
+	*.img \
+	$(KERNEL)/*.o \
+	$(USER_LIB)/*.o \
+	$(USER_BIN)/*.o \
+	$(LIB_DST)/* \
+	$(BIN_DST)/* \
+	$(INCLUDE_DST)/*
