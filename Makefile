@@ -12,6 +12,8 @@ ifdef DEBUG
 QEMUOPTS += -s -S
 endif
 
+FSSIZE := 256MiB
+
 CFLAGS := -ffreestanding -nostdlib -fno-omit-frame-pointer -g -O0
 
 # Kernel
@@ -46,17 +48,13 @@ USER_BIN_OBJS := $(patsubst $(USER_BIN)/%.c, $(USER_BIN)/%.o, $(USER_BIN_SRCS))
 
 
 # File System
-
+FSIMG := fs.img
 ROOTFS := rootfs
 BIN_DST := $(ROOTFS)/bin
 LIB_DST := $(ROOTFS)/lib
 INCLUDE_DST := $(ROOTFS)/include
 
 USER_EXES := $(patsubst $(USER_BIN)/%.o, $(BIN_DST)/%, $(USER_BIN_OBJS))
-
-# temporary single user binary image
-USER_BINS := $(patsubst $(BIN_DST)/%, %.img, $(USER_EXES))
-
 USER_LIB_STATIC := $(LIB_DST)/libcoreos.a
 USER_LIB_DYNAMIC := $(LIB_DST)/libcoreos.so
 USER_HDRS := $(patsubst $(USER_LIB)/%.h, $(INCLUDE_DST)/%.h, $(USER_LIB_C_HDRS))
@@ -65,9 +63,11 @@ USER_HDRS := $(patsubst $(USER_LIB)/%.h, $(INCLUDE_DST)/%.h, $(USER_LIB_C_HDRS))
 
 # Compiling kernel
 
-.PHONY: all clean qemu libcoreos user
+.PHONY: all clean qemu libcoreos kernel user
 
-all: $(USER_LIB_STATIC) $(USER_LIB_DYNAMIC) $(USER_HDRS) $(USER_EXES) $(USER_BINS) $(KERNEL_BIN)
+all: kernel user
+
+kernel: $(KERNEL_BIN)
 
 $(KERNEL_BIN): $(KERNEL_ELF)
 	$(OBJCOPY) $^ -O binary $@
@@ -105,11 +105,10 @@ $(INCLUDE_DST)/%.h: $(USER_LIB)/%.h
 
 
 # User programs
-user: $(USER_EXES) $(USER_BINS)
+user: $(FSIMG)
 
-# ! temporary rule for making user binary imges
-%.img: $(BIN_DST)/%
-	$(OBJCOPY) $^ -O binary $@
+$(FSIMG): $(USER_EXES) $(USER_LIB_STATIC) $(USER_LIB_DYNAMIC) $(USER_HDRS) mkfs/mkfs
+	mkfs/mkfs -o $@ $(ROOTFS) -s$(FSSIZE)
 
 $(BIN_DST)/%: $(USER_BIN)/%.o $(USER_LIB_STATIC)
 	$(LD) $(LDFLAGS) -T $(USER_LINKER_SCRIPT) -o $@ $^
@@ -121,8 +120,9 @@ $(USER_BIN)/%.o: $(USER_BIN)/%.c $(USER_HDRS)
 
 # Emulation
 
-qemu: $(KERNEL_BIN)
-	$(QEMU) $(QEMUOPTS) -kernel $(KERNEL_BIN)
+qemu: $(KERNEL_BIN) $(FSIMG)
+	$(QEMU) $(QEMUOPTS) -kernel $(KERNEL_BIN) \
+		-drive file=$(FSIMG),if=virtio,format=raw
 
 gdb: $(KERNEL_ELF)
 	$(GDB) \
