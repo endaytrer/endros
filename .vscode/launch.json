@@ -14,9 +14,9 @@
                 "fs.img",
                 "rootfs",
                 "-i",
-                "16",
+                "1024",
                 "-s",
-                "8GiB"
+                "128MiB"
             ],
             "console": "integratedTerminal",
             "justMyCode": true

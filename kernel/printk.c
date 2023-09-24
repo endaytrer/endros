@@ -13,7 +13,9 @@ char *itoa(int64_t num, char *buffer) {
     if (num == 0) {
         *(ptr++) = '0';
     }
-
+    if (num == 1) {
+        *(ptr++) = '1';
+    }
     int p = 1;
     while (p < num) {
         p *= COUNTING_SYSTEM;
@@ -33,5 +35,22 @@ void printk(const char *fmt) {
     const char *ptr = fmt;
     while (*ptr != '\0') {
         kputc(*ptr++);
+    }
+}
+
+void panic(const char *fmt) {
+    printk(fmt);
+    while (1) ;
+}
+
+void memset(void *start, uint8_t byte, uint64_t size) {
+    for (uint8_t *ptr = (uint8_t *)start; ptr - (uint8_t *)start < size; ++ptr) {
+        *ptr = byte;
+    }
+}
+
+void memcpy(void *dst, const void *src, uint64_t size) {
+    for (uint64_t i = 0; i < size; i++) {
+        *((uint8_t *)dst + i) = *((uint8_t *)src + i);
     }
 }

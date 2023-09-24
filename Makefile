@@ -13,6 +13,7 @@ QEMUOPTS += -s -S
 endif
 
 FSSIZE := 256MiB
+INODES := 1024
 
 CFLAGS := -ffreestanding -nostdlib -fno-omit-frame-pointer -g -O0
 
@@ -54,7 +55,8 @@ BIN_DST := $(ROOTFS)/bin
 LIB_DST := $(ROOTFS)/lib
 INCLUDE_DST := $(ROOTFS)/include
 
-USER_EXES := $(patsubst $(USER_BIN)/%.o, $(BIN_DST)/%, $(USER_BIN_OBJS))
+USER_ELFS := $(patsubst $(USER_BIN)/%.o, $(BIN_DST)/%, $(USER_BIN_OBJS))
+USER_BINS := $(patsubst $(USER_BIN)/%.o, $(BIN_DST)/%.bin, $(USER_BIN_OBJS))
 USER_LIB_STATIC := $(LIB_DST)/libcoreos.a
 USER_LIB_DYNAMIC := $(LIB_DST)/libcoreos.so
 USER_HDRS := $(patsubst $(USER_LIB)/%.h, $(INCLUDE_DST)/%.h, $(USER_LIB_C_HDRS))
@@ -65,7 +67,7 @@ USER_HDRS := $(patsubst $(USER_LIB)/%.h, $(INCLUDE_DST)/%.h, $(USER_LIB_C_HDRS))
 
 .PHONY: all clean qemu libcoreos kernel user
 
-all: kernel user
+all: user kernel
 
 kernel: $(KERNEL_BIN)
 
@@ -107,8 +109,11 @@ $(INCLUDE_DST)/%.h: $(USER_LIB)/%.h
 # User programs
 user: $(FSIMG)
 
-$(FSIMG): $(USER_EXES) $(USER_LIB_STATIC) $(USER_LIB_DYNAMIC) $(USER_HDRS) mkfs/mkfs
-	mkfs/mkfs -o $@ $(ROOTFS) -s$(FSSIZE)
+$(FSIMG): $(USER_BINS) $(USER_ELFS) $(USER_LIB_STATIC) $(USER_LIB_DYNAMIC) $(USER_HDRS) mkfs/mkfs
+	mkfs/mkfs -o $@ $(ROOTFS) -s$(FSSIZE) -i$(INODES)
+
+$(BIN_DST)/%.bin: $(BIN_DST)/%
+	$(OBJCOPY) $^ --strip-all -O binary $@
 
 $(BIN_DST)/%: $(USER_BIN)/%.o $(USER_LIB_STATIC)
 	$(LD) $(LDFLAGS) -T $(USER_LINKER_SCRIPT) -o $@ $^

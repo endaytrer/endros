@@ -38,7 +38,7 @@ class Inode(ctypes.Structure):
     ]
 
 
-DIR_ENTRY_SIZE = 8
+DIR_ENTRY_SIZE = 64
 
 class DirEntry(ctypes.Structure):
     _fields_ = [('name', ctypes.c_char * 60),
@@ -54,10 +54,7 @@ parser.add_argument('-i', '--inodes', default=str(DEFAULT_INODES), help=f"Number
 
 mm: mmap.mmap
 
-total_blocks: int
-total_inodes: int
 current_block = 0
-current_inode = 0
 
 inode_bitmap_ptr: int
 inode_bitmap_size_bytes: int
@@ -149,8 +146,6 @@ def filesize_to_blocks(size: int) -> list[list[int]]:
 
 def allocate_contiguous_blocks(from_id: int, size: int):
     global mm
-    global total_blocks
-    global total_inodes
     global inode_bitmap_blocks
     global data_bitmap_blocks
     global inode_table_blocks
@@ -163,7 +158,6 @@ def allocate_contiguous_blocks(from_id: int, size: int):
     global data_ptr
     global data_size
     global current_block
-    global current_inode
 
     (ptr_from, offset_from) = bitmap_locate(from_id)
     (ptr_to, offset_to) = bitmap_locate(from_id + size - 1)
@@ -195,11 +189,9 @@ def allocate_contiguous_blocks(from_id: int, size: int):
     mm.seek(data_bitmap_ptr + ptr_to)
     mm.write_byte(original_byte)
 
-def allocate_file_blocks(inode: Inode, size_bytes: int) -> None:
+def allocate_file_blocks(inode: Inode, size_bytes: int, data: bytearray) -> None:
 
     global mm
-    global total_blocks
-    global total_inodes
     global inode_bitmap_blocks
     global data_bitmap_blocks
     global inode_table_blocks
@@ -212,7 +204,6 @@ def allocate_file_blocks(inode: Inode, size_bytes: int) -> None:
     global data_ptr
     global data_size
     global current_block
-    global current_inode
 
     blocks = filesize_to_blocks(size_bytes)
     level = len(blocks) - 1
@@ -220,7 +211,9 @@ def allocate_file_blocks(inode: Inode, size_bytes: int) -> None:
     allocate_contiguous_blocks(current_block, num_blocks)
     for i in range(blocks[0][0]):
         inode.direct[i] = current_block + i
-
+        mm.seek((current_block + i) * BLOCK_SIZE)
+        mm.write(data[i * BLOCK_SIZE: (i + 1) * BLOCK_SIZE])
+    
     current_block += sum(blocks[0])
     if level < 1:
         return
@@ -228,9 +221,15 @@ def allocate_file_blocks(inode: Inode, size_bytes: int) -> None:
     # write indirect
     inode.single_ind = current_block
     single_ind_ptr = inode.single_ind * BLOCK_SIZE
-    mm.seek(single_ind_ptr)
     for i in range(blocks[1][1]):
-        mm.write((current_block + sum(blocks[1][:1]) + i).to_bytes(4, 'little'))
+        block = current_block + sum(blocks[1][:1]) + i
+        index = sum([sum(j) for j in blocks[:1]]) + sum(blocks[1][:1]) + i
+        mm.seek(single_ind_ptr + i * 4)
+        mm.write(block.to_bytes(4, 'little'))
+
+        mm.seek(block * BLOCK_SIZE)
+        mm.write(data[index * BLOCK_SIZE: (index + 1) * BLOCK_SIZE])
+        # write data
 
     current_block += sum(blocks[1])
     if level < 2:
@@ -244,9 +243,14 @@ def allocate_file_blocks(inode: Inode, size_bytes: int) -> None:
 
     double_ind_second = current_block + sum(blocks[2][:1])
     double_ind_second_ptr = double_ind_second * BLOCK_SIZE
-    mm.seek(double_ind_second_ptr)
     for i in range(blocks[2][2]):
-        mm.write((current_block + sum(blocks[2][:2]) + i).to_bytes(4, 'little'))
+        block = current_block + sum(blocks[2][:2]) + i
+        index = sum([sum(j) for j in blocks[:2]]) + sum(blocks[2][:2]) + i
+        mm.seek(double_ind_second_ptr + i * 4)
+        mm.write(block.to_bytes(4, 'little'))
+
+        mm.seek(block * BLOCK_SIZE)
+        mm.write(data[index * BLOCK_SIZE: (index + 1) * BLOCK_SIZE])
 
 
     current_block += sum(blocks[2])
@@ -267,15 +271,18 @@ def allocate_file_blocks(inode: Inode, size_bytes: int) -> None:
 
     triple_ind_third = current_block + sum(blocks[3][:2])
     triple_ind_third_ptr = triple_ind_third * BLOCK_SIZE
-    mm.seek(triple_ind_third_ptr)
     for i in range(blocks[3][3]):
+        block = current_block + sum(blocks[3][:3]) + i
+        index = sum([sum(j) for j in blocks[:3]]) + sum(blocks[3][:3]) + i
+        mm.seek(triple_ind_third_ptr + i * 4)
         mm.write((current_block + sum(blocks[3][:3]) + i).to_bytes(4, 'little'))
 
-def create_file(inode: int, type: int, privilege: int, size_bytes: int) -> None:
+        mm.seek(block * BLOCK_SIZE)
+        mm.write(data[index * BLOCK_SIZE: (index + 1) * BLOCK_SIZE])
+
+def create_file(inode: int, type: int, privilege: int, size_bytes: int, data: bytearray) -> None:
 
     global mm
-    global total_blocks
-    global total_inodes
     global inode_bitmap_blocks
     global data_bitmap_blocks
     global inode_table_blocks
@@ -288,7 +295,6 @@ def create_file(inode: int, type: int, privilege: int, size_bytes: int) -> None:
     global data_ptr
     global data_size
     global current_block
-    global current_inode
 
     # mark inode bitmap to 1
     (ptr, offset) = bitmap_locate(inode)
@@ -302,19 +308,12 @@ def create_file(inode: int, type: int, privilege: int, size_bytes: int) -> None:
 
     # set inode info
     inode_obj = Inode(type, privilege, size_bytes)
-    allocate_file_blocks(inode_obj, size_bytes)
+    allocate_file_blocks(inode_obj, size_bytes, data)
     mm.seek(inode_table_ptr + inode * INODE_SIZE)
     mm.write(inode_obj)
-    
 
-
-    
-
-    
-def main() -> None:
+def create_dir_bfs(path: str, inode: int) -> None:
     global mm
-    global total_blocks
-    global total_inodes
     global inode_bitmap_blocks
     global data_bitmap_blocks
     global inode_table_blocks
@@ -327,11 +326,74 @@ def main() -> None:
     global data_ptr
     global data_size
     global current_block
-    global current_inode
+
+    bfs_queue = [(path, inode, inode)]
+
+    current_inode = inode + 1
+
+    while len(bfs_queue) != 0:
+        path, inode, p_inode = bfs_queue.pop(0)
+
+        if not os.path.isdir(path):
+            # treat symbolic links as regular files
+            stats = os.stat(path)
+            type = VSFS_FILE
+            privilege = stats.st_mode
+            size = stats.st_size
+            
+            with open(path, 'rb') as f:
+                data = f.read(size)
+            
+            create_file(inode, type, privilege, size, data)
+            continue
+
+        stats = os.stat(path)
+        type = VSFS_DIRECTORY
+        privilege = stats.st_mode
+        subdir = [(x, current_inode + i) for i, x in enumerate(os.listdir(path))]
+
+        size = (2 + len(subdir)) * DIR_ENTRY_SIZE
+            
+        data = bytearray(DirEntry(".".encode(), inode))
+        data += DirEntry("..".encode(), p_inode)
+            
+        for name, new_inode in subdir:
+            bfs_queue.append((path + '/' + name, new_inode, inode))
+            data += DirEntry(name.encode(), new_inode)
+
+        create_file(inode, type, privilege, size, data)
+        current_inode += len(subdir)
+
+
+
+            
+
+
+
+
+
+def main() -> None:
+    global mm
+    global inode_bitmap_blocks
+    global data_bitmap_blocks
+    global inode_table_blocks
+    global inode_bitmap_ptr
+    global inode_bitmap_size_bytes
+    global data_bitmap_ptr
+    global data_bitmap_size_bytes
+    global inode_table_ptr
+    global inode_table_size_bytes
+    global data_ptr
+    global data_size
+    global current_block
 
     args = parser.parse_args()
 
     size = parse_size(args.size)
+
+    if not os.path.isdir(args.directory):
+        raise Exception(f"{args.directory} is not a directory")
+
     fd = os.open(args.output, os.O_RDWR | os.O_CREAT | os.O_TRUNC)
     if fd < 0:
         raise Exception(f"cannot open file {args.output}")
@@ -363,11 +425,10 @@ def main() -> None:
     mm.write(super_block)
 
     current_block = 1 + inode_bitmap_blocks + data_bitmap_blocks + inode_table_blocks
-    current_inode = 0
 
     allocate_contiguous_blocks(0, current_block)
 
-    create_file(0, VSFS_DIRECTORY, 0o644, parse_size('4MiB'))
+    create_dir_bfs(args.directory, 2)
 
     # saving file
     mm.flush()
