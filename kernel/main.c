@@ -1,11 +1,11 @@
-#include <stdint.h>
 #include "sbi.h"
 #include "printk.h"
 #include "batch.h"
 #include "trap.h"
+#include "pagetable.h"
 
-extern void *sbss;
-extern void *ebss;
+extern void sbss();
+extern void ebss();
 
 extern void kernel_stack_top();
 extern void user_stack_top();
@@ -59,6 +59,7 @@ void run_next_app(void) {
 }
 
 void init(void) {
+    init_pagetable();
     clear_bss();
 
     // start app manager
