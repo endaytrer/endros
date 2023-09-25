@@ -5,7 +5,7 @@ void fibonacci(int k);
 
 void _start(void) {
     fibonacci(5);
-    write(STDOUT, "Hello 5!\n");
+    write(STDOUT, "Hello 5!\n", 10);
     exit(0);
 }
 
@@ -13,6 +13,6 @@ void fibonacci(int k) {
     if (k == 0) return;
     char c[] = "0";
     c[0] += k;
-    write(STDOUT, c);
+    write(STDOUT, c, 2);
     fibonacci(k - 1);
 }

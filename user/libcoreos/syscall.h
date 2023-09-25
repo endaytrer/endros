@@ -19,7 +19,7 @@ static inline __attribute__((always_inline)) int64_t syscall(uint64_t id, uint64
     return x10;
 }
 
-int64_t sys_write(uint64_t fd, const char *buffer);
+int64_t sys_write(uint64_t fd, const char *buffer, uint64_t size);
 int64_t sys_exit(int32_t xstate);
 
 

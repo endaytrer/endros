@@ -1,7 +1,7 @@
 #include "syscall.h"
 
-int64_t sys_write(uint64_t fd, const char *buffer) {
-    return syscall(SYS_WRITE, fd, (uint64_t)buffer, 0);
+int64_t sys_write(uint64_t fd, const char *buffer, uint64_t size) {
+    return syscall(SYS_WRITE, fd, (uint64_t)buffer, size);
 }
 
 int64_t sys_exit(int32_t xstate) {
