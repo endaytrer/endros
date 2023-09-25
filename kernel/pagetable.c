@@ -76,13 +76,12 @@ pfn_t palloc_ptr(vpn_t vpn, uint64_t flags) {
         ptunmap(ADDR_2_PAGE(pfreelist));
         pfreelist = next;
         ptmap(vpn, pfn, flags);
+        memset(PAGE_2_ADDR(vpn), 0, PAGESIZE);
         return pfn;
     }
     pfn_t pfn = pfn_start++;
     ptmap(vpn, pfn, flags);
-
     memset(PAGE_2_ADDR(vpn), 0, PAGESIZE);
-
     return pfn;
 }
 
@@ -144,7 +143,7 @@ void uptmap(vpn_t uptbase, PTReference *ptref_base, vpn_t vpn, pfn_t pfn, uint64
         pfn_t temp_pfn = uptalloc(&temp_vpn);
         PTReference *next_ptref = kalloc(2 * PAGESIZE);
 
-        *pte = PTE(temp_pfn, PTE_USER | PTE_VALID);
+        *pte = PTE(temp_pfn, PTE_VALID);
         ptref->ptable = PAGE_2_ADDR(temp_vpn);
         ptref->pt_reference = next_ptref;
     }
@@ -156,7 +155,7 @@ void uptmap(vpn_t uptbase, PTReference *ptref_base, vpn_t vpn, pfn_t pfn, uint64
         vpn_t temp_vpn;
         pfn_t temp_pfn = uptalloc(&temp_vpn);
 
-        *pte = PTE(temp_pfn, PTE_USER | PTE_VALID);
+        *pte = PTE(temp_pfn, PTE_VALID);
         ptref->ptable = PAGE_2_ADDR(temp_vpn);
     }
 
@@ -314,11 +313,9 @@ void init_pagetable(void) {
 
     // activate paging
     uint64_t token = ((uint64_t)1 << 63) | pt_base;
-    pfn_t temp_pfn_start = pfn_start;
     asm volatile(
         "csrw satp, %0\n\t"
         "sfence.vma"
         :: "r" (token)
     );
-    pfn_start = temp_pfn_start;
 }

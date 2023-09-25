@@ -16,6 +16,10 @@ void clear_bss(void) {
 
 
 void init(void) {
+    asm volatile(
+        "csrw stvec, %0"
+        :: "r" (TRAMPOLINE)
+    );
     clear_bss();
     init_pagetable();
     init_app_manager();

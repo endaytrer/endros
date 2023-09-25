@@ -3,7 +3,7 @@ CC := $(PREFIX)gcc
 LD := $(PREFIX)ld
 AS := $(PREFIX)as
 AR := $(PREFIX)ar
-GDB := $(PREFIX)gdb
+GDB := gdb-multiarch
 OBJCOPY := $(PREFIX)objcopy
 
 QEMU := qemu-system-riscv64

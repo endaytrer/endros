@@ -45,7 +45,6 @@ void load_app(Task *task, uint32_t appid) {
     // map trampoline
     extern void strampoline();
     uptmap(ptbase_vpn, ptref_base, ADDR_2_PAGE(TRAMPOLINE), ADDR_2_PAGE(strampoline), PTE_VALID | PTE_READ | PTE_EXECUTE);
-
     Elf64_Ehdr *elf_header = (Elf64_Ehdr *)app_manager.app_start[appid];
     vpn_t max_vpn = 0;
     uint64_t num_sections = 0;
@@ -56,7 +55,7 @@ void load_app(Task *task, uint32_t appid) {
         }
         uint64_t start_va = program_header->p_vaddr;
         uint64_t end_va = program_header->p_vaddr + program_header->p_memsz;
-        uint64_t flags = PTE_USER | PTE_VALID;
+        uint64_t flags = PTE_VALID | PTE_USER;
         flags |= (program_header->p_flags & PF_R) ? PTE_READ : 0;
         flags |= (program_header->p_flags & PF_W) ? PTE_WRITE : 0;
         flags |= (program_header->p_flags & PF_X) ? PTE_EXECUTE : 0;
@@ -86,7 +85,7 @@ void load_app(Task *task, uint32_t appid) {
         pfn_t pfn = uptalloc(&kernel_vpn);
         uptmap(ptbase_vpn, ptref_base, vpn, pfn, PTE_USER | PTE_VALID | PTE_READ | PTE_WRITE);
         task->user_stack[vpn - max_vpn].pfn = pfn;
-        task->user_stack[vpn - max_vpn].vpn = vpn;
+        task->user_stack[vpn - max_vpn].vpn = kernel_vpn;
     }
     // trap context
     vpn_t trap_context;

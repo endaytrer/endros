@@ -4,13 +4,21 @@
 #include "batch.h"
 
 #define SSTATUS_SPP 0x00000100
-
+extern AppManager app_manager;
 void set_sp(TrapContext *self, uint64_t sp) {
     self->x[2] = sp;
 }
 
-TrapContext *trap_handler(TrapContext *cx, uint64_t scause, uint64_t stval) {
+void trap_handler() {
+    TrapContext *cx = PAGE_2_ADDR(app_manager.current_task.trap_vpn);
+    uint64_t scause;
+    uint64_t stval;
 
+    asm volatile (
+        "csrr %0, scause\n\t"
+        "csrr %1, stval\n\t"
+        : "=r" (scause), "=r" (stval)
+    );
     char buf[16];
     switch (scause) {
         case TRAP_USER_ENV_CALL:
@@ -35,7 +43,6 @@ TrapContext *trap_handler(TrapContext *cx, uint64_t scause, uint64_t stval) {
             run_next_app();
 
     }
-    return cx;
 }
 
 void app_init_context(TrapContext *ptr, uint64_t entry, uint64_t user_sp, uint64_t kernel_sp) {
