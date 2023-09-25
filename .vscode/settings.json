@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "*.m": "matlab",
-        "printk.h": "c"
+        "printk.h": "c",
+        "pagetable.h": "c"
     }
 }

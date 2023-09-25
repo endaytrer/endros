@@ -7,9 +7,6 @@
 extern void sbss();
 extern void ebss();
 
-extern void kernel_stack_top();
-extern void user_stack_top();
-
 #define panic(info) \
 do { \
     printk(info); \
@@ -50,8 +47,11 @@ void run_next_app(void) {
     app_manager.current_app += 1;
 
     // push context to kernel stack
-    uint8_t *kernel_sp = (uint8_t *)kernel_stack_top;
-    uint8_t *user_sp = (uint8_t *)user_stack_top;
+    uint8_t *kernel_sp = kalloc(0x10000);
+    kernel_sp += 0x10000;
+    uint8_t *user_sp = kalloc(0x10000);
+    user_sp += 0x10000;
+    
     kernel_sp -= sizeof(TrapContext);
     app_init_context((TrapContext *)kernel_sp, APP_BASE_ADDRESS, (uint64_t)user_sp);
     __restore((uint64_t)kernel_sp);

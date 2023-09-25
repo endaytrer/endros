@@ -20,14 +20,14 @@
 
 typedef uint64_t pte_t;
 typedef struct free_node_t {
-    pfn_t pfn;
+    uint64_t size;
     struct free_node_t *next;
 } FreeNode;
 
 
-pfn_t palloc();
+void *kalloc(uint64_t size);
+void kfree(void *ptr, uint64_t size);
 
-static pte_t *ptable = (pte_t *)0x1000;
 
 void pfree(vpn_t vpn, pfn_t pfn);
 
