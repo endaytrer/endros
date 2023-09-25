@@ -77,7 +77,7 @@ $(KERNEL_ELF): $(KERNEL_OBJS) $(KERNEL_LINKER_SCRIPT)
 	$(LD) $(LDFLAGS) -T $(KERNEL_LINKER_SCRIPT) -o $@ $(KERNEL_OBJS)
 
 $(KERNEL)/%.o: $(KERNEL)/%.c
-	$(CC) $(CFLAGS) -c -o $@ $^
+	$(CC) -fPIC $(CFLAGS) -c -o $@ $^
 
 $(KERNEL)/%.o: $(KERNEL)/%.S
 	$(AS) $(ASFLAGS) -c -o $@ $^
