@@ -11,8 +11,11 @@ typedef struct {
     uint64_t x[32];
     uint64_t sstatus;
     uint64_t sepc;
+    uint64_t kernel_satp;
+    uint64_t kernel_sp;
+    uint64_t trap_handler;
 } TrapContext;
 
-void app_init_context(TrapContext *ptr, void *entry, uint64_t sp);
+void app_init_context(TrapContext *ptr, uint64_t entry, uint64_t user_sp, uint64_t kernel_sp);
 
 #endif

@@ -9,15 +9,6 @@ void set_sp(TrapContext *self, uint64_t sp) {
     self->x[2] = sp;
 }
 
-void c_init_context(TrapContext *ptr, uint64_t entry, uint64_t sp, uint64_t sstatus) {
-
-    sstatus &= ~SSTATUS_SPP;
-    memset(ptr, 0, sizeof(TrapContext));
-    set_sp(ptr, sp);
-    ptr->sstatus = sstatus;
-    ptr->sepc = entry;
-}
-
 TrapContext *trap_handler(TrapContext *cx, uint64_t scause, uint64_t stval) {
 
     char buf[16];
@@ -40,8 +31,26 @@ TrapContext *trap_handler(TrapContext *cx, uint64_t scause, uint64_t stval) {
         default:
             printk("Unsupported trap: ");
             printk(itoa(scause, buf));
+            printk("\n");
             run_next_app();
 
     }
     return cx;
+}
+
+void app_init_context(TrapContext *ptr, uint64_t entry, uint64_t user_sp, uint64_t kernel_sp) {
+    uint64_t sstatus, satp;
+    asm volatile(
+        "csrr %0, sstatus\n\t"
+        "csrr %1, satp"
+        : "=r"(sstatus), "=r"(satp)
+    );
+    sstatus &= ~SSTATUS_SPP;
+    memset(ptr, 0, sizeof(TrapContext));
+    set_sp(ptr, user_sp);
+    ptr->sstatus = sstatus;
+    ptr->sepc = entry;
+    ptr->kernel_satp = satp;
+    ptr->kernel_sp = kernel_sp;
+    ptr->trap_handler = (uint64_t)trap_handler;
 }

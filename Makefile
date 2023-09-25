@@ -3,7 +3,7 @@ CC := $(PREFIX)gcc
 LD := $(PREFIX)ld
 AS := $(PREFIX)as
 AR := $(PREFIX)ar
-GDB := gdb-multiarch
+GDB := $(PREFIX)gdb
 OBJCOPY := $(PREFIX)objcopy
 
 QEMU := qemu-system-riscv64
@@ -56,7 +56,6 @@ LIB_DST := $(ROOTFS)/lib
 INCLUDE_DST := $(ROOTFS)/include
 
 USER_ELFS := $(patsubst $(USER_BIN)/%.o, $(BIN_DST)/%, $(USER_BIN_OBJS))
-USER_BINS := $(patsubst $(USER_BIN)/%.o, $(BIN_DST)/%.bin, $(USER_BIN_OBJS))
 USER_LIB_STATIC := $(LIB_DST)/libcoreos.a
 USER_LIB_DYNAMIC := $(LIB_DST)/libcoreos.so
 USER_HDRS := $(patsubst $(USER_LIB)/%.h, $(INCLUDE_DST)/%.h, $(USER_LIB_C_HDRS))
@@ -89,10 +88,10 @@ $(KERNEL)/%.o: $(KERNEL)/%.S
 
 libcoreos: $(USER_LIB_STATIC) $(USER_LIB_DYNAMIC)
 
-$(USER_LIB_STATIC): $(USER_LIB_OBJS)
+$(USER_LIB_STATIC): $(USER_LIB_OBJS) | $(LIB_DST)
 	$(AR) rcs $@ $^
 
-$(USER_LIB_DYNAMIC): $(USER_LIB_OBJS)
+$(USER_LIB_DYNAMIC): $(USER_LIB_OBJS) | $(LIB_DST)
 	$(CC) -shared $(CFLAGS) -o $@ $^
 
 $(USER_LIB)/%.o: $(USER_LIB)/%.c
@@ -101,21 +100,25 @@ $(USER_LIB)/%.o: $(USER_LIB)/%.c
 $(USER_LIB)/%.o: $(USER_LIB)/%.S
 	$(AS) -fPIC $(ASFLAGS) -c -o $@ $^
 
-$(INCLUDE_DST)/%.h: $(USER_LIB)/%.h
+$(INCLUDE_DST)/%.h: $(USER_LIB)/%.h | $(INCLUDE_DST)
 	cp $^ $@
 
+$(LIB_DST):
+	mkdir -p $@
 
+$(INCLUDE_DST):
+	mkdir -p $@
+
+$(BIN_DST):
+	mkdir -p $@
 
 # User programs
 user: $(FSIMG)
 
-$(FSIMG): $(USER_BINS) $(USER_ELFS) $(USER_LIB_STATIC) $(USER_LIB_DYNAMIC) $(USER_HDRS) mkfs/mkfs
+$(FSIMG): $(USER_HDRS) $(USER_ELFS) $(USER_LIB_STATIC) $(USER_LIB_DYNAMIC) mkfs/mkfs
 	mkfs/mkfs -o $@ $(ROOTFS) -s$(FSSIZE) -i$(INODES)
 
-$(BIN_DST)/%.bin: $(BIN_DST)/%
-	$(OBJCOPY) $^ --strip-all -O binary $@
-
-$(BIN_DST)/%: $(USER_BIN)/%.o $(USER_LIB_STATIC)
+$(BIN_DST)/%: $(USER_BIN)/%.o $(USER_LIB_STATIC) | $(BIN_DST)
 	$(LD) $(LDFLAGS) -T $(USER_LINKER_SCRIPT) -o $@ $^
 
 $(USER_BIN)/%.o: $(USER_BIN)/%.c $(USER_HDRS)
@@ -125,7 +128,7 @@ $(USER_BIN)/%.o: $(USER_BIN)/%.c $(USER_HDRS)
 
 # Emulation
 
-qemu: $(KERNEL_BIN) $(FSIMG)
+qemu: $(FSIMG) $(KERNEL_BIN)
 	$(QEMU) $(QEMUOPTS) -kernel $(KERNEL_BIN) \
 		-drive file=$(FSIMG),if=virtio,format=raw
 
