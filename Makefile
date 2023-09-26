@@ -15,7 +15,7 @@ endif
 FSSIZE := 256MiB
 INODES := 1024
 
-CFLAGS := -ffreestanding -nostdlib -fno-omit-frame-pointer -g -O0
+CFLAGS := -Wall -Wextra -ffreestanding -nostdlib -fno-omit-frame-pointer -g -O0
 
 # Kernel
 KERNEL := kernel

@@ -11,18 +11,7 @@ typedef struct {
     pfn_t ptbase_pfn;
     vpn_t ptbase_vpn;
 
-    PTReference *ptref_base; // kallocked
-    uint64_t num_sections;
-    struct {
-        pfn_t pfn;
-        vpn_t vpn;
-    } sections[APP_SIZE_LIMIT / PAGESIZE];
-
-    struct {
-        pfn_t pfn;
-        vpn_t vpn;
-    } user_stack[USER_STACK_SIZE / PAGESIZE];
-    pfn_t trap_pfn;
+    PTReference_2 *ptref_base; // kallocked
     vpn_t trap_vpn;
     void *kernel_stack;
 } Task;

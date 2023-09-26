@@ -6,7 +6,7 @@
 #define SYS_WRITE 64
 #define SYS_EXIT 93
 
-int64_t sys_write(uint64_t fd, uint8_t *buf, uint64_t size);
+int64_t sys_write(uint64_t fd, const char *buf, uint64_t size);
 int64_t sys_exit(int32_t xstate);
 
 

@@ -126,72 +126,124 @@ void kfree(void *ptr, uint64_t size) {
     uint64_t pages = ADDR_2_PAGEUP(size);
     // lazy approach, leave fragments
     FreeNode *free_head = (FreeNode *)ptr;
-    free_head->type.size = size;
+    free_head->type.size = pages;
     free_head->next = freelist;
     freelist = free_head;
 }
+vpn_t walkupt(PTReference_2 *ptref_base, vpn_t user_vpn) {
+    /* walk in user page table
+        return the page referenced by kernel vpn
+     */
+    PTReference_2 *ptref2 = ptref_base + VPN(2, user_vpn);
 
-void uptmap(vpn_t uptbase, PTReference *ptref_base, vpn_t vpn, pfn_t pfn, uint64_t flags) {
-    // map in user page table
-    // uiptbase is a page table, but using virtual addresses, to track lower level page tables
-
-    pte_t *pte = (pte_t *)((uint64_t)PAGE_2_ADDR(uptbase) | (VPN(2, vpn) << 3));
-    PTReference *ptref = ptref_base + VPN(2, vpn);
-
-    if (!ptref->ptable) {
-        vpn_t temp_vpn;
-        pfn_t temp_pfn = uptalloc(&temp_vpn);
-        PTReference *next_ptref = kalloc(2 * PAGESIZE);
-
-        *pte = PTE(temp_pfn, PTE_VALID);
-        ptref->ptable = PAGE_2_ADDR(temp_vpn);
-        ptref->pt_reference = next_ptref;
+    if (!ptref2->ptable) {
+        // lookup failed
+        return 0;
     }
 
-    pte = (pte_t *)((uint64_t)ptref->ptable | (VPN(1, vpn) << 3));
-    ptref = ptref->pt_reference + VPN(1, vpn);
+    PTReference_1 *ptref1 = ptref2->pt_ref + VPN(1, user_vpn);
 
-    if (!ptref->ptable) {
-        vpn_t temp_vpn;
-        pfn_t temp_pfn = uptalloc(&temp_vpn);
-
-        *pte = PTE(temp_pfn, PTE_VALID);
-        ptref->ptable = PAGE_2_ADDR(temp_vpn);
+    if (!ptref1->ptable) {
+        // lookup failed
+        return 0;
     }
 
-    pte = (pte_t *)((uint64_t)ptref->ptable | (VPN(0, vpn) << 3));
+    vpn_t *ptref0 = ptref1->pt_ref + VPN(0, user_vpn);
+    return *ptref0;
+
+}
+void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t user_vpn, pfn_t pfn, uint64_t flags) {
+    /* map in user page table
+       if kernel_vpn is 0, the page cannot be referenced by kernel
+     */
+
+    pte_t *pte = (pte_t *)((uint64_t)PAGE_2_ADDR(uptbase) | (VPN(2, user_vpn) << 3));
+    PTReference_2 *ptref2 = ptref_base + VPN(2, user_vpn);
+
+    if (!ptref2->ptable) {
+        vpn_t temp_vpn;
+        pfn_t temp_pfn = uptalloc(&temp_vpn);
+        PTReference_1 *next_ptref = kalloc(2 * PAGESIZE);
+
+        *pte = PTE(temp_pfn, PTE_VALID);
+        ptref2->ptable = PAGE_2_ADDR(temp_vpn);
+        ptref2->pt_ref = next_ptref;
+    }
+
+    pte = (pte_t *)((uint64_t)ptref2->ptable | (VPN(1, user_vpn) << 3));
+    PTReference_1 *ptref1 = ptref2->pt_ref + VPN(1, user_vpn);
+
+    if (!ptref1->ptable) {
+        vpn_t temp_vpn;
+        pfn_t temp_pfn = uptalloc(&temp_vpn);
+        vpn_t *next_ptref = kalloc(PAGESIZE);
+
+        *pte = PTE(temp_pfn, PTE_VALID);
+        ptref1->ptable = PAGE_2_ADDR(temp_vpn);
+        ptref1->pt_ref = next_ptref;
+    }
+
+    pte = (pte_t *)((uint64_t)ptref1->ptable | (VPN(0, user_vpn) << 3));
+    vpn_t *ptref0 = ptref1->pt_ref + VPN(0, user_vpn);
     *pte = PTE(pfn, flags);
+    *ptref0 = kernel_vpn;
 }
 
-void uptunmap(vpn_t uptbase, PTReference *ptref_base, vpn_t vpn) {
+void uptunmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t user_vpn) {
     // unmap in user page table
     // uiptbase is a page table, but using virtual addresses, to track lower level page tables
 
-    pte_t *pte = (pte_t *)((uint64_t)PAGE_2_ADDR(uptbase) | (VPN(2, vpn) << 3));
-    PTReference *ptref = ptref_base + VPN(2, vpn);
+    pte_t *pte = (pte_t *)((uint64_t)PAGE_2_ADDR(uptbase) | (VPN(2, user_vpn) << 3));
+    PTReference_2 *ptref2 = ptref_base + VPN(2, user_vpn);
 
-    if (!ptref->ptable) {
-        panic("Cannot unmap unmapped page\n");
+    if (!ptref2->ptable) {
+        panic("Cannot unmap unmapped pages\n");
     }
 
-    pte = (pte_t *)((uint64_t)ptref->ptable | (VPN(1, vpn) << 3));
-    ptref = ptref->pt_reference + VPN(1, vpn);
+    pte = (pte_t *)((uint64_t)ptref2->ptable | (VPN(1, user_vpn) << 3));
+    PTReference_1 *ptref1 = ptref2->pt_ref + VPN(1, user_vpn);
 
-    if (!ptref->ptable) {
-        panic("Cannot unmap unmapped page\n");
+    if (!ptref1->ptable) {
+        panic("Cannot unmap unmapped pages\n");
     }
 
-    pte = (pte_t *)((uint64_t)ptref->ptable | (VPN(0, vpn) << 3));
+    pte = (pte_t *)((uint64_t)ptref1->ptable | (VPN(0, user_vpn) << 3));
+    vpn_t *ptref0 = ptref1->pt_ref + VPN(0, user_vpn);
+    pfn_t pfn = GET_PFN(pte);
+    if (*ptref0) {
+        uptfree(pfn, *ptref0);
+    }
     *pte = 0;
+
+    // cannot modify ptref0, since it needs to be managed by allocator.
 }
-void ptref_free(pfn_t ptbase_pfn, vpn_t ptbase_vpn, PTReference *ptref_base) {
-    for (PTReference *ptr = ptref_base; ptr - ptref_base < PAGESIZE / sizeof(pte_t); ++ptr) {
-        if (ptr->ptable) {
-            pte_t *pte = (pte_t *)((uint64_t)PAGE_2_ADDR(ptbase_vpn) | ((ptr - ptref_base) << 3));
-            pfn_t ptable_pfn = GET_PFN(pte);
-            ptref_free(ptable_pfn, ADDR_2_PAGE(ptr->ptable), ptr->pt_reference);
+void ptref_free(pfn_t ptbase_pfn, vpn_t ptbase_vpn, PTReference_2 *ptref_base) {
+    for (uint64_t i = 0; i < PAGESIZE / sizeof(pte_t); i++) {
+        pte_t *pte2 = (pte_t *)((uint64_t)PAGE_2_ADDR(ptbase_vpn) | (i << 3));
+        PTReference_2 *ptref2 = ptref_base + i;
+        if (!ptref2->ptable) continue;
+
+        for (uint64_t j = 0; j < PAGESIZE / sizeof(pte_t); j++) {
+            pte_t *pte1 = (pte_t *)((uint64_t)ptref2->ptable | (j << 3));
+            PTReference_1 *ptref1 = ptref2->pt_ref + j;
+            if (!ptref1->ptable) continue;
+            
+            for (uint64_t k = 0; k < PAGESIZE / sizeof(pte_t); k++) {
+                pte_t *pte0 = (pte_t *)((uint64_t)ptref1->ptable | (k << 3));
+                vpn_t *ptref0 = ptref1->pt_ref + k;
+                if (!*ptref0) continue;
+                // freeing allocated page
+                uptfree(GET_PFN(pte0), *ptref0);
+            }
+            // freeing page table level 0, and vpn table
+            uptfree(GET_PFN(pte1), ADDR_2_PAGE(ptref1->ptable));
+            kfree(ptref1->pt_ref, PAGESIZE);
         }
+        // freeing page table level 1, and ptref_1 table
+        uptfree(GET_PFN(pte2), ADDR_2_PAGE(ptref2->ptable));
+        kfree(ptref2->pt_ref, PAGESIZE * 2);
     }
+    // freeing ptref and ptbase
     uptfree(ptbase_pfn, ptbase_vpn);
     kfree(ptref_base, PAGESIZE * 2);
 }

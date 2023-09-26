@@ -16,7 +16,7 @@ void init_app_manager(void) {
 
     
     ptr++;
-    for (int i = 0; i <= num_apps; i++) {
+    for (uint64_t i = 0; i <= num_apps; i++) {
         app_manager.app_start[i] = *(ptr + i);
     }
 }
@@ -39,12 +39,12 @@ void load_app(Task *task, uint32_t appid) {
     task->ptbase_pfn = app_ptbase;
     task->ptbase_vpn = ptbase_vpn;
 
-    PTReference *ptref_base = kalloc(2 * PAGESIZE);
+    PTReference_2 *ptref_base = kalloc(2 * PAGESIZE);
     task->ptref_base = ptref_base;
 
     // map trampoline
     extern void strampoline();
-    uptmap(ptbase_vpn, ptref_base, ADDR_2_PAGE(TRAMPOLINE), ADDR_2_PAGE(strampoline), PTE_VALID | PTE_READ | PTE_EXECUTE);
+    uptmap(ptbase_vpn, ptref_base, 0, ADDR_2_PAGE(TRAMPOLINE), ADDR_2_PAGE(strampoline), PTE_VALID | PTE_READ | PTE_EXECUTE);
     Elf64_Ehdr *elf_header = (Elf64_Ehdr *)app_manager.app_start[appid];
     vpn_t max_vpn = 0;
     uint64_t num_sections = 0;
@@ -67,14 +67,10 @@ void load_app(Task *task, uint32_t appid) {
             pfn_t pfn = uptalloc(&kernel_vpn);
             uint64_t offset = (uint64_t)PAGE_2_ADDR(vpn) - start_va;
             memcpy(PAGE_2_ADDR(kernel_vpn), (void *)((uint64_t)program_start + offset), PAGESIZE);
-            uptmap(ptbase_vpn, ptref_base, vpn, pfn, flags);
-
-            task->sections[num_sections].pfn = pfn;
-            task->sections[num_sections].vpn = kernel_vpn;
+            uptmap(ptbase_vpn, ptref_base, kernel_vpn, vpn, pfn, flags);
             num_sections++;
         }
     }
-    task->num_sections = num_sections;
 
     // map user stack;
     // guard page
@@ -83,16 +79,13 @@ void load_app(Task *task, uint32_t appid) {
     for (vpn_t vpn = max_vpn; vpn < max_vpn + USER_STACK_SIZE / PAGESIZE; vpn++) {
         vpn_t kernel_vpn;
         pfn_t pfn = uptalloc(&kernel_vpn);
-        uptmap(ptbase_vpn, ptref_base, vpn, pfn, PTE_USER | PTE_VALID | PTE_READ | PTE_WRITE);
-        task->user_stack[vpn - max_vpn].pfn = pfn;
-        task->user_stack[vpn - max_vpn].vpn = kernel_vpn;
+        uptmap(ptbase_vpn, ptref_base, kernel_vpn, vpn, pfn, PTE_USER | PTE_VALID | PTE_READ | PTE_WRITE);
     }
     // trap context
     vpn_t trap_context;
     pfn_t pfn = uptalloc(&trap_context);
-    uptmap(ptbase_vpn, ptref_base, ADDR_2_PAGE(TRAPFRAME), pfn, PTE_VALID | PTE_READ | PTE_WRITE);
+    uptmap(ptbase_vpn, ptref_base, trap_context, ADDR_2_PAGE(TRAPFRAME), pfn, PTE_VALID | PTE_READ | PTE_WRITE);
     task->trap_vpn = trap_context;
-    task->trap_pfn = pfn;
 
     uint8_t *kernel_sp = kalloc(KERNEL_STACK_SIZE);
     task->kernel_stack = kernel_sp;
@@ -108,15 +101,7 @@ void run_next_app(void) {
     if (app_manager.current_app != 0) {
         // free stuff
         ptref_free(app_manager.current_task.ptbase_pfn, app_manager.current_task.ptbase_vpn, app_manager.current_task.ptref_base);
-        for (uint64_t i = 0; i < app_manager.current_task.num_sections; i++) {
-            uptfree(app_manager.current_task.sections[i].pfn, app_manager.current_task.sections[i].vpn);
-        }
-        for (uint64_t i = 0; i < USER_STACK_SIZE / PAGESIZE; i++) {
-            uptfree(app_manager.current_task.user_stack[i].pfn, app_manager.current_task.user_stack[i].vpn);
-        }
-        uptfree(app_manager.current_task.trap_pfn, app_manager.current_task.trap_vpn);
         kfree(app_manager.current_task.kernel_stack, KERNEL_STACK_SIZE);
-
     }
     load_app(&app_manager.current_task, app_manager.current_app);
     app_manager.current_app++;

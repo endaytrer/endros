@@ -9,7 +9,25 @@ void set_sp(TrapContext *self, uint64_t sp) {
     self->x[2] = sp;
 }
 
-void trap_handler() {
+void trap_return(void) {
+    asm volatile (
+        "csrw stvec, %0"
+        :: "r" (TRAMPOLINE)
+    );
+
+    extern void strampoline();
+    extern void __restore();
+    uint64_t token = ((uint64_t)1 << 63) | app_manager.current_task.ptbase_pfn;
+    void (*restore)(void *trap_context, uint64_t user_token) = (void (*)(void *, uint64_t))(TRAMPOLINE + (uint64_t)__restore - (uint64_t)strampoline);
+    register uint64_t a0 asm("a0") = (uint64_t)TRAPFRAME;
+    register uint64_t a1 asm("a1") = token;
+    asm volatile (
+        "fence.i\n\t"
+        "jr %0"
+        :: "r"(restore), "r" (a0), "r" (a1)
+    );
+}
+void trap_handler(void) {
     TrapContext *cx = PAGE_2_ADDR(app_manager.current_task.trap_vpn);
     uint64_t scause;
     uint64_t stval;
@@ -41,8 +59,8 @@ void trap_handler() {
             printk(itoa(scause, buf));
             printk("\n");
             run_next_app();
-
     }
+    trap_return();
 }
 
 void app_init_context(TrapContext *ptr, uint64_t entry, uint64_t user_sp, uint64_t kernel_sp) {

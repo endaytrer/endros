@@ -7,4 +7,5 @@ int64_t sys_exit(int32_t xstate) {
     printk(itoa(xstate, buf));
     printk("\n");
     run_next_app();
+    return 0;
 }

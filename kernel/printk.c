@@ -44,7 +44,7 @@ void panic(const char *fmt) {
 }
 
 void memset(void *start, uint8_t byte, uint64_t size) {
-    for (uint8_t *ptr = (uint8_t *)start; ptr - (uint8_t *)start < size; ++ptr) {
+    for (uint8_t *ptr = (uint8_t *)start; ptr < (uint8_t *)start + size; ++ptr) {
         *ptr = byte;
     }
 }
