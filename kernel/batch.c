@@ -28,10 +28,6 @@ User Space Layout
 
 */
 void load_app(Task *task, uint32_t appid) {
-    if (appid > app_manager.num_apps) {
-        printk("All applications are completed!\n");
-        return;
-    }
     
     vpn_t ptbase_vpn;
 
@@ -47,7 +43,6 @@ void load_app(Task *task, uint32_t appid) {
     uptmap(ptbase_vpn, ptref_base, 0, ADDR_2_PAGE(TRAMPOLINE), ADDR_2_PAGE(strampoline), PTE_VALID | PTE_READ | PTE_EXECUTE);
     Elf64_Ehdr *elf_header = (Elf64_Ehdr *)app_manager.app_start[appid];
     vpn_t max_vpn = 0;
-    uint64_t num_sections = 0;
     for (int i = 0; i < elf_header->e_phnum; i++) {
         Elf64_Phdr *program_header = (Elf64_Phdr *)(app_manager.app_start[appid] + elf_header->e_phoff) + i;
         if (program_header->p_type != PT_LOAD) {
@@ -68,12 +63,13 @@ void load_app(Task *task, uint32_t appid) {
             uint64_t offset = (uint64_t)PAGE_2_ADDR(vpn) - start_va;
             memcpy(PAGE_2_ADDR(kernel_vpn), (void *)((uint64_t)program_start + offset), PAGESIZE);
             uptmap(ptbase_vpn, ptref_base, kernel_vpn, vpn, pfn, flags);
-            num_sections++;
         }
     }
 
     // map user stack;
     // guard page
+
+
 
     max_vpn += 1;
     for (vpn_t vpn = max_vpn; vpn < max_vpn + USER_STACK_SIZE / PAGESIZE; vpn++) {
@@ -102,6 +98,10 @@ void run_next_app(void) {
         // free stuff
         ptref_free(app_manager.current_task.ptbase_pfn, app_manager.current_task.ptbase_vpn, app_manager.current_task.ptref_base);
         kfree(app_manager.current_task.kernel_stack, KERNEL_STACK_SIZE);
+    }
+    if (app_manager.current_app >= app_manager.num_apps) {
+        printk("All applications are completed!\n");
+        return;
     }
     load_app(&app_manager.current_task, app_manager.current_app);
     app_manager.current_app++;

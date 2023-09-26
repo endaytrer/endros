@@ -101,11 +101,17 @@ void *kalloc(uint64_t size) {
             FreeNode *newp = (FreeNode *)((uint64_t)p + pages * PAGESIZE);
             newp->next = p->next;
             newp->type.size = (p->type.size - pages);
-            prev->next = newp;
+            if (prev)
+                prev->next = newp;
+            else
+                freelist = newp;
             memset(p, 0, sizeof(FreeNode));
             return p;
         } else if (p->type.size == pages) {
-            prev->next = p->next;
+            if (prev)
+                prev->next = p->next;
+            else
+                freelist = p->next;
             memset(p, 0, sizeof(FreeNode));
             return p;
         }

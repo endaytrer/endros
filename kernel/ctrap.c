@@ -39,16 +39,24 @@ void trap_handler(void) {
     );
     char buf[16];
     switch (scause) {
-        case TRAP_USER_ENV_CALL:
+        case TRAP_UserEnvCall:
             cx->sepc += 4;
             cx->x[10] = syscall(cx->x[17], cx->x[10], cx->x[11], cx->x[12]);
             break;
-        case TRAP_STORE_FAULT:
-        case TRAP_STORE_PAGE_FAULT:
-            printk("Page fault in application.\n");
+        case TRAP_LoadPageFault:
+            printk("Load Page fault in application.\n");
             run_next_app();
             break;
-        case TRAP_ILLEGAL_INSTRUCTION:
+        case TRAP_StorePageFault:
+            printk("Store Page fault in application.\n");
+            run_next_app();
+            break;
+
+        case TRAP_InstructionPageFault:
+            printk("Instruction Page fault in application.\n");
+            run_next_app();
+            break;
+        case TRAP_IllegalInstruction:
             printk("Illegal instruction: ");
             printk(itoa(stval, buf));
             printk("\n");

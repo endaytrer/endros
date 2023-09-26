@@ -7,7 +7,6 @@ extern AppManager app_manager;
 int64_t sys_write(uint64_t fd, const char *buf, uint64_t size) {
     if (fd != STDOUT) {
         printk("Unsupported fileno.\n");
-        run_next_app();
         return -1;
     }
     // translate write buffer

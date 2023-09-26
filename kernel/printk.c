@@ -1,7 +1,7 @@
 #include "printk.h"
 #include "sbi.h"
 #define COUNTING_SYSTEM 16
-#define DIGIT_TO_CHAR(i) (i >= 10 ? 'a' + i : '0' + i)
+#define DIGIT_TO_CHAR(i) ((i >= 10) ? ('a' + (i - 10)) : '0' + i)
 
 
 char *itoa(int64_t num, char *buffer) {
@@ -9,6 +9,16 @@ char *itoa(int64_t num, char *buffer) {
     if (num < 0) {
         *(ptr++) = '-';
         num = -num;
+    }
+    if (COUNTING_SYSTEM == 16) {
+        *(ptr++) = '0';
+        *(ptr++) = 'x';
+    } else if (COUNTING_SYSTEM == 8) {
+        *(ptr++) = '0';
+        *(ptr++) = 'o';
+    } else if (COUNTING_SYSTEM == 2) {
+        *(ptr++) = '0';
+        *(ptr++) = 'b';
     }
     if (num == 0) {
         *(ptr++) = '0';
