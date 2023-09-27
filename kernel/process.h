@@ -12,6 +12,8 @@
 #define APP_SIZE_LIMIT 0x20000
 #define HEAP_TOP 0x4000000000
 
+#define FLAGS_WAITED 0x1
+
 typedef struct pcb_t {
     pid_t pid;
     enum {
@@ -24,7 +26,11 @@ typedef struct pcb_t {
     } status;
 
     int cpuid;
+
+    struct pcb_t *parent;
     int flags;
+    int exit_code;
+
     // page table info
     pfn_t ptbase_pfn;
     vpn_t ptbase_vpn;

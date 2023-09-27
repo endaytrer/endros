@@ -10,9 +10,10 @@ void _start() {
     if (pid == 0) {
         // child process
         write(STDOUT, "I'm the child!\n", 15);
-        exec("/bin/1");
+        exec("/bin/sh");
     } else {
-        write(STDOUT, "I'm the parent!\n", 16);
+        waitpid(pid);
+        write(STDOUT, "Child has exited\n", 18);
     }
     exit(0);
 }

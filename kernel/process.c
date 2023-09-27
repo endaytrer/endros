@@ -124,7 +124,7 @@ void init_scheduler(void) {
 
     process->status = READY;
     process->cpuid = cpuid;
-    process->pid = next_pid;
+    process->pid = next_pid++;
     process->flags = 0;
     load_process(process, (void *)*((const uint64_t *)_num_app + 1));
 

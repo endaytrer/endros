@@ -3,14 +3,15 @@
 #include <stdint.h>
 
 
-#define SYS_WRITE 64
-#define SYS_EXIT 93
-#define SYS_YIELD 124
+#define SYS_READ     63
+#define SYS_WRITE    64
+#define SYS_EXIT     93
+#define SYS_YIELD    124
 #define SYS_GET_TIME 169
-#define SYS_SBRK 214
-#define SYS_FORK 220
-#define SYS_EXEC 221
-#define SYS_WAITPID 260
+#define SYS_SBRK     214
+#define SYS_FORK     220
+#define SYS_EXEC     221
+#define SYS_WAITPID  260
 
 typedef int pid_t;
 typedef struct {
@@ -19,6 +20,7 @@ typedef struct {
 } TimeVal;
 
 int64_t sys_write(uint64_t fd, const char *buf, uint64_t size);
+int64_t sys_read(uint64_t fd, char *buf, uint64_t size);
 int64_t sys_exit(int32_t xstate);
 int64_t sys_yield(void);
 int64_t sys_get_time(TimeVal *ts, uint64_t _tz);

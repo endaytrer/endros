@@ -2,6 +2,7 @@
 #include "printk.h"
 
 static void(*syscall_table[])() = {
+    [SYS_READ]     = (void (*)())sys_read,
     [SYS_WRITE]    = (void (*)())sys_write,
     [SYS_EXIT]     = (void (*)())sys_exit,
     [SYS_YIELD]    = (void (*)())sys_yield,
@@ -9,7 +10,7 @@ static void(*syscall_table[])() = {
     [SYS_SBRK]     = (void (*)())sys_sbrk,
     [SYS_FORK]     = (void (*)())sys_fork,
     [SYS_EXEC]     = (void (*)())sys_exec,
-    [SYS_WAITPID]     = (void (*)())sys_waitpid,
+    [SYS_WAITPID]  = (void (*)())sys_waitpid,
 };
 
 int64_t syscall(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2) {

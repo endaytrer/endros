@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 
+#define SYS_READ 63
 #define SYS_WRITE 64
 #define SYS_EXIT 93
 #define SYS_YIELD 124
@@ -27,6 +28,9 @@ SYSCALL syscall(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2) {
     return x10;
 }
 
+SYSCALL sys_read(uint64_t fd, char *buffer, uint64_t size) {
+    return syscall(SYS_READ, fd, (uint64_t)buffer, size);
+}
 SYSCALL sys_write(uint64_t fd, const char *buffer, uint64_t size) {
     return syscall(SYS_WRITE, fd, (uint64_t)buffer, size);
 }
@@ -58,4 +62,5 @@ SYSCALL sys_exec(const char *path) {
 SYSCALL sys_waitpid(int pid) {
     return syscall(SYS_WAITPID, pid, 0, 0);
 }
+
 #endif

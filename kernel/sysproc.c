@@ -58,8 +58,18 @@ int64_t sys_exit(int32_t xstate) {
     printk(itoa(xstate, buf));
     printk("\n");
 
-    terminate(proc);
-    unload_process(proc);
+    // if it is waited by parent, reschedule parent and set to terminated
+    if (proc->flags & FLAGS_WAITED) {
+        proc->parent->status = READY;
+        // set return code of waitpid() to be xstate
+        proc->parent->trapframe->x[10] = xstate;
+        terminate(proc);
+        unload_process(proc);
+        schedule(cpuid);
+        return 0;
+    }
+    proc->status = ZOMBIE;
+    proc->exit_code = xstate;
     schedule(cpuid);
     return 0;
 }
@@ -82,7 +92,8 @@ int64_t sys_fork(void) {
     new_proc->pid = next_pid;
     new_proc->status = READY;
     new_proc->cpuid = cpuid;
-    new_proc->flags = proc->flags;
+    new_proc->parent = proc;
+    new_proc->flags = 0;
 
     vpn_t ptbase_vpn;
     pfn_t ptbase_pfn = uptalloc(&ptbase_vpn);
@@ -124,5 +135,26 @@ int64_t sys_fork(void) {
 }
 
 int64_t sys_waitpid(pid_t pid) {
+    int cpuid = 0;
+    PCB *proc = cpus[cpuid].running;
+    PCB *child_proc = NULL;
+    for (int i = 0; i < NUM_PROCS; i++) {
+        if (process_control_table[i].pid == pid && process_control_table[i].parent == proc) {
+            child_proc = process_control_table + i;
+        }
+    }
+    if (!child_proc) {
+        printk("[kernel] Cannot wait pid\n");
+        return -1;
+    }
+    // already exited
+    if (child_proc->status == ZOMBIE) {
+        terminate(child_proc);
+        unload_process(child_proc);
+        return 0;
+    }
+    child_proc->flags |= FLAGS_WAITED;
+    proc->status = BLOCKED;
+    schedule(cpuid);
     return 0;
 }

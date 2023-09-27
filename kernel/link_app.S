@@ -24,9 +24,9 @@ name_app_map:
 init_start:
     .incbin "rootfs/bin/init"
 name_0:
-    .asciz "/bin/1"
+    .asciz "/bin/sh"
 app_0_start:
-    .incbin "rootfs/bin/1"
+    .incbin "rootfs/bin/sh"
 
 name_1:
     .asciz "/bin/2"
