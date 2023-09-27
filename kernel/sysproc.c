@@ -3,6 +3,8 @@
 #include "machine.h"
 #include "timer.h"
 #include "process.h"
+#include "pagetable.h"
+extern pid_t next_pid;
 
 int64_t sys_yield(void) {
     int cpuid = 0;
@@ -10,23 +12,116 @@ int64_t sys_yield(void) {
     return 0;
 }
 
+int64_t sys_sbrk(int64_t size) {
+    int cpuid = 0;
+    PCB *proc = cpus[cpuid].running;
+    void *old_brk = proc->brk;
+
+    if ((uint64_t)old_brk + size >= HEAP_TOP || (uint64_t)old_brk + size < (uint64_t)proc->heap_bottom) {
+        printk("[kernel] trying to allocate more than heap size / less than 0");
+        return -1;
+    }
+    if (size > 0) {
+        for (int vpn = ADDR_2_PAGEUP(old_brk); vpn < ADDR_2_PAGEUP((uint64_t)old_brk + size); ++vpn) {
+            vpn_t kernel_vpn;
+            pfn_t pfn = uptalloc(&kernel_vpn);
+            uptmap(proc->ptbase_vpn, proc->ptref_base, kernel_vpn, vpn, pfn, PTE_USER | PTE_VALID | PTE_READ | PTE_WRITE);
+        }
+    }
+    if (size < 0) {
+        for (int vpn = ADDR_2_PAGEUP((uint64_t)old_brk + size); vpn < ADDR_2_PAGEUP(old_brk); ++vpn) {
+            uptunmap(proc->ptbase_vpn, proc->ptref_base, vpn);
+        }
+    }
+    return (int64_t)old_brk;
+}
+
 int64_t sys_get_time(TimeVal *ts, uint64_t _tz) {
-    ts->usec = get_time_us();
-    ts->sec = ts->usec / MICRO_PER_SEC;
+    int cpuid = 0;
+    vpn_t kernel_vpn = walkupt(cpus[cpuid].running->ptref_base, ADDR_2_PAGE(ts));
+    TimeVal *kernel_ts = (TimeVal *)((uint64_t)PAGE_2_ADDR(kernel_vpn) | OFFSET(ts));
+
+    kernel_ts->usec = get_time_us();
+    kernel_ts->sec = ts->usec / MICRO_PER_SEC;
     return 0;
 }
 
 int64_t sys_exit(int32_t xstate) {
     int cpuid = 0;
+    PCB *proc = cpus[cpuid].running;
+
     char buf[16];
     printk("[kernel] Process ");
-    printk(itoa(cpus[cpuid].running->pid, buf));
+    printk(itoa(proc->pid, buf));
     printk(" exited with code ");
     printk(itoa(xstate, buf));
     printk("\n");
 
-    terminate(cpus[cpuid].running);
-    unload_process(cpus[cpuid].running);
+    terminate(proc);
+    unload_process(proc);
     schedule(cpuid);
+    return 0;
+}
+
+int64_t sys_fork(void) {
+    int cpuid = 0;
+    PCB *proc = cpus[cpuid].running;
+    PCB *new_proc = NULL;
+    for (uint64_t i = 0; i < NUM_PROCS; i++) {
+        if (process_control_table[i].status != UNUSED) {
+            continue;
+        }
+        new_proc = process_control_table + i;
+        break;
+    }
+    if (!new_proc) {
+        printk("[kernel] cannot allocate new process because process table is full.");
+        return -1;
+    }
+    new_proc->pid = next_pid;
+    new_proc->status = READY;
+    new_proc->cpuid = cpuid;
+    new_proc->flags = proc->flags;
+
+    vpn_t ptbase_vpn;
+    pfn_t ptbase_pfn = uptalloc(&ptbase_vpn);
+    PTReference_2 *ptref_base = kalloc(2 * PAGESIZE);
+
+    new_proc->ptbase_vpn = ptbase_vpn;
+    new_proc->ptbase_pfn = ptbase_pfn;
+    new_proc->ptref_base = ptref_base;
+
+    extern void strampoline();
+
+    // copy remaining spaces into new pagetable
+    ptref_copy(ptbase_pfn, ptbase_vpn, ptref_base, proc->ptbase_pfn, proc->ptbase_vpn, proc->ptref_base);
+
+    // map new trampoline
+    uptmap(ptbase_vpn, ptref_base, 0, ADDR_2_PAGE(TRAMPOLINE), ADDR_2_PAGE(strampoline), PTE_VALID | PTE_READ | PTE_EXECUTE);
+    new_proc->brk = proc->brk;
+    new_proc->heap_bottom = proc->heap_bottom;
+
+    new_proc->trapframe = PAGE_2_ADDR(walkupt(ptref_base, ADDR_2_PAGE(TRAPFRAME)));
+
+    // allocate kernel stack with guard page
+    uint8_t *kernel_sp = kalloc(KERNEL_STACK_SIZE + PAGESIZE);
+
+    // ptunmaping guard page
+    pfn_t kernel_stack_pfn = ptunmap(ADDR_2_PAGE(kernel_sp));
+
+    new_proc->kernel_stack_vpn = ADDR_2_PAGE(kernel_sp);
+    new_proc->kernel_stack_pfn = kernel_stack_pfn;
+
+    kernel_sp += KERNEL_STACK_SIZE + PAGESIZE;
+
+    // remap kernel stack
+    new_proc->trapframe->kernel_sp = (uint64_t)kernel_sp;
+
+    // set return code of new process to be 0
+    new_proc->trapframe->x[10] = 0;
+    return next_pid++;
+}
+
+int64_t sys_waitpid(pid_t pid) {
     return 0;
 }

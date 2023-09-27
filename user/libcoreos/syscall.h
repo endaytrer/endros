@@ -7,8 +7,14 @@
 #define SYS_EXIT 93
 #define SYS_YIELD 124
 #define SYS_GET_TIME 169
+#define SYS_SBRK 214
+#define SYS_FORK 220
+#define SYS_EXEC 221
+#define SYS_WAITPID 260
 
-static inline __attribute__((always_inline)) int64_t syscall(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2) {
+#define SYSCALL static inline __attribute__((always_inline)) long
+
+SYSCALL syscall(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2) {
     register uint64_t x10 asm("x10") = arg0;
     register uint64_t x11 asm("x11") = arg1;
     register uint64_t x12 asm("x12") = arg2;
@@ -21,15 +27,35 @@ static inline __attribute__((always_inline)) int64_t syscall(uint64_t id, uint64
     return x10;
 }
 
-typedef struct {
-    uint64_t sec;
-    uint64_t usec;
-} TimeVal;
+SYSCALL sys_write(uint64_t fd, const char *buffer, uint64_t size) {
+    return syscall(SYS_WRITE, fd, (uint64_t)buffer, size);
+}
 
-int64_t sys_write(uint64_t fd, const char *buffer, uint64_t size);
-int64_t sys_exit(int32_t xstate);
-int64_t sys_yield(void);
-int64_t sys_get_time(TimeVal *ts, uint64_t _tz);
+SYSCALL sys_exit(int32_t xstate) {
+    return syscall(SYS_EXIT, (uint64_t) xstate, 0, 0);
+}
 
+SYSCALL sys_yield(void) {
+    return syscall(SYS_YIELD, 0, 0, 0);
+}
 
+SYSCALL sys_get_time(void *ts, uint64_t _tz) {
+    return syscall(SYS_GET_TIME, (uint64_t)ts, _tz, 0);
+}
+
+SYSCALL sys_sbrk(int64_t size) {
+    return syscall(SYS_SBRK, (uint64_t)size, 0, 0);
+}
+
+SYSCALL sys_fork(void) {
+    return syscall(SYS_FORK, 0, 0, 0);
+}
+
+SYSCALL sys_exec(const char *path) {
+    return syscall(SYS_EXEC, (uint64_t)path, 0, 0);
+}
+
+SYSCALL sys_waitpid(int pid) {
+    return syscall(SYS_WAITPID, pid, 0, 0);
+}
 #endif

@@ -4,12 +4,13 @@
 #include "pagetable.h"
 #include "trap.h"
 #include "machine.h"
+#include "syscall.h"
+
 #define NUM_PROCS 256
 #define USER_STACK_SIZE 0x100000
 #define KERNEL_STACK_SIZE 0x100000
 #define APP_SIZE_LIMIT 0x20000
-
-typedef int pid_t;
+#define HEAP_TOP 0x4000000000
 
 typedef struct pcb_t {
     pid_t pid;
@@ -28,6 +29,8 @@ typedef struct pcb_t {
     pfn_t ptbase_pfn;
     vpn_t ptbase_vpn;
     PTReference_2 *ptref_base;
+    void *brk;
+    void *heap_bottom;
 
     // trap frame
     TrapContext *trapframe;

@@ -5,13 +5,21 @@
 _num_app:
 
     .quad 5
+    .quad init_start
     .quad app_0_start
     .quad app_1_start
     .quad app_2_start
     .quad app_3_start
     .quad app_4_start
-    .quad app_4_end
     
+.section .data
+.global init_start
+.global init_end
+
+init_start:
+    .incbin "rootfs/bin/init"
+init_end:
+
 .section .data
 .global app_0_start
 .global app_0_end

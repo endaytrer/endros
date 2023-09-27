@@ -196,7 +196,7 @@ void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t us
 }
 
 void uptunmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t user_vpn) {
-    // unmap in user page table
+    // unmap in user page table, auto freeing the page;
     // uiptbase is a page table, but using virtual addresses, to track lower level page tables
 
     pte_t *pte = (pte_t *)((uint64_t)PAGE_2_ADDR(uptbase) | (VPN(2, user_vpn) << 3));
@@ -252,6 +252,58 @@ void ptref_free(pfn_t ptbase_pfn, vpn_t ptbase_vpn, PTReference_2 *ptref_base) {
     // freeing ptref and ptbase
     uptfree(ptbase_pfn, ptbase_vpn);
     kfree(ptref_base, PAGESIZE * 2);
+}
+
+void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_ptref_base, pfn_t src_ptbase_pfn, vpn_t src_ptbase_vpn, PTReference_2 *src_ptref_base) {
+
+    // copy pagetable. copy-on-write NOT IMPLEMENTED
+    for (uint64_t i = 0; i < PAGESIZE / sizeof(pte_t); i++) {
+        pte_t *dst_pte2 = (pte_t *)((uint64_t)PAGE_2_ADDR(dst_ptbase_vpn) | (i << 3));
+        PTReference_2 *src_ptref2 = src_ptref_base + i;
+        PTReference_2 *dst_ptref2 = dst_ptref_base + i;
+
+        if (!src_ptref2->ptable) continue;
+
+        // dst pagetable is empty, so always create pagetable in this step;
+        vpn_t kernel_vpn_2;
+        pfn_t pfn_2 = uptalloc(&kernel_vpn_2);
+        dst_ptref2->pt_ref = kalloc(PAGESIZE * 2);
+        dst_ptref2->ptable = PAGE_2_ADDR(kernel_vpn_2);
+        *dst_pte2 = PTE(pfn_2, PTE_VALID);
+
+        for (uint64_t j = 0; j < PAGESIZE / sizeof(pte_t); j++) {
+            pte_t *dst_pte1 = (pte_t *)((uint64_t)dst_ptref2->ptable | (j << 3));
+            PTReference_1 *src_ptref1 = src_ptref2->pt_ref + j;
+            PTReference_1 *dst_ptref1 = dst_ptref2->pt_ref + j;
+            if (!src_ptref1->ptable) continue;
+
+
+            // dst pagetable is empty, so always create pagetable in this step;
+            vpn_t kernel_vpn_1;
+            pfn_t pfn_1 = uptalloc(&kernel_vpn_1);
+            dst_ptref1->pt_ref = kalloc(PAGESIZE);
+            dst_ptref1->ptable = PAGE_2_ADDR(kernel_vpn_1);
+            *dst_pte1 = PTE(pfn_1, PTE_VALID);
+            
+            for (uint64_t k = 0; k < PAGESIZE / sizeof(pte_t); k++) {
+                pte_t *src_pte0 = (pte_t *)((uint64_t)src_ptref1->ptable | (k << 3));
+                pte_t *dst_pte0 = (pte_t *)((uint64_t)dst_ptref1->ptable | (k << 3));
+                vpn_t *src_ptref0 = src_ptref1->pt_ref + k;
+                vpn_t *dst_ptref0 = dst_ptref1->pt_ref + k;
+
+                if (!*src_ptref0) continue;
+
+                // creating page and corresponding level-0 page entry;
+                vpn_t kernel_vpn;
+                pfn_t pfn = uptalloc(&kernel_vpn);
+                *dst_pte0 = PTE(pfn, GET_FLAGS(src_pte0));
+                *dst_ptref0 = kernel_vpn;
+
+                // copying from src space to dst space;
+                memcpy(PAGE_2_ADDR(*dst_ptref0), PAGE_2_ADDR(*src_ptref0), PAGESIZE);
+            }
+        }
+    }
 }
 
 void ptmap(vpn_t vpn, pfn_t pfn, uint64_t flags) {

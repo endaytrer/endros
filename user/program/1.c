@@ -3,6 +3,12 @@
 void _start(void) {
     // write and exit
     write(STDOUT, "Hello 1!\n", 10);
+
+    int64_t *s = sbrk(sizeof(int64_t));
+    *s = 16;
+    char buf[16];
+    write(STDOUT, itoa(*s, buf), 16);
+    write(STDOUT, "\n", 2);
     for (volatile int i = 0; i < 100000000; i++) {
         if (i % 1000000 == 0) {
             write(STDOUT, "1", 2);

@@ -18,6 +18,7 @@
 #define SET_PFN(pte_p, pfn) *pte_p = ((*pte_p & ~(0xfffffffffffffc00)) | (pfn << 10))
 #define GET_PFN(pte_p) (*(pte_p) >> 10)
 #define SET_FLAGS(pte_p, flags) *pte_p = ((*pte_p & ~(0x3ff)) | flags)
+#define GET_FLAGS(pte_p) (*(pte_p) & 0x3ff)
 #define OFFSET(addr) ((uint64_t)(addr) & 0xfff)
 
 typedef uint64_t pte_t;
@@ -48,6 +49,7 @@ void uptfree(pfn_t pfn, vpn_t vpn);
 void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t user_vpn, pfn_t pfn, uint64_t flags);
 void uptunmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t vpn);
 void ptref_free(pfn_t ptbase_pfn, vpn_t ptbase_vpn, PTReference_2 *ptref_base);
+void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_ptref_base, pfn_t src_ptbase_pfn, vpn_t src_ptbase_vpn, PTReference_2 *src_ptref_base);
 
 // kernel page stuff
 pfn_t palloc_ptr(vpn_t vpn, uint64_t flags);

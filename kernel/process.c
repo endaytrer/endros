@@ -59,11 +59,14 @@ void load_process(PCB *process, pid_t pid, void *app_start, int cpuid) {
 
 
     max_vpn += 1;
-    for (vpn_t vpn = max_vpn; vpn < max_vpn + USER_STACK_SIZE / PAGESIZE; vpn++) {
+    vpn_t heap_bottom = max_vpn + USER_STACK_SIZE / PAGESIZE;
+    for (vpn_t vpn = max_vpn; vpn < heap_bottom; vpn++) {
         vpn_t kernel_vpn;
         pfn_t pfn = uptalloc(&kernel_vpn);
         uptmap(ptbase_vpn, ptref_base, kernel_vpn, vpn, pfn, PTE_USER | PTE_VALID | PTE_READ | PTE_WRITE);
     }
+    process->brk = PAGE_2_ADDR(heap_bottom);
+    process->heap_bottom = PAGE_2_ADDR(heap_bottom);
 
     // trap context
     vpn_t trap_vpn;
@@ -117,6 +120,7 @@ void init_scheduler(void) {
             if (!process)
                 process = process_control_table + i;
             load_process(process_control_table + i, next_pid++, (void *)*((const uint64_t *)_num_app + 1 + (appid++)), cpuid);
+            break;
         }
     }
 
@@ -140,7 +144,7 @@ void schedule(int cpuid) {
         }
     }
     if (process == NULL) {
-        printk("All tasks finished!");
+        printk("[kernel] All tasks finished!\n");
         shutdown();
     }
     run(cpuid, process);
