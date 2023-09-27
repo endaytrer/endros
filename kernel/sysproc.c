@@ -1,3 +1,4 @@
+#include <string.h>
 #include "syscall.h"
 #include "printk.h"
 #include "machine.h"

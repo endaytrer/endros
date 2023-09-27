@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <string.h>
 #include "process.h"
 #include "elf.h"
 #include "printk.h"
@@ -9,12 +10,8 @@ PCB process_control_table[NUM_PROCS];
 CPU cpus[NCPU];
 pid_t next_pid = 1;
 
-void load_process(PCB *process, pid_t pid, void *app_start, int cpuid) {
+void load_process(PCB *process, void *app_start) {
     // set process to be ready;
-    process->status = READY;
-    process->cpuid = cpuid;
-    process->pid = pid;
-    process->flags = 0;
 
     vpn_t ptbase_vpn;
 
@@ -87,16 +84,19 @@ void load_process(PCB *process, pid_t pid, void *app_start, int cpuid) {
 
     app_init_context(PAGE_2_ADDR(trap_vpn), elf_header->e_entry, (uint64_t)PAGE_2_ADDR(max_vpn) + USER_STACK_SIZE, (uint64_t)kernel_sp);
 }
-
+void free_process_space(PCB *process) {
+    ptref_free(process->ptbase_pfn, process->ptbase_vpn, process->ptref_base);
+    
+    ptmap(process->kernel_stack_vpn, process->kernel_stack_pfn, PTE_VALID | PTE_READ | PTE_WRITE);
+    // remap guard page
+    kfree(PAGE_2_ADDR(process->kernel_stack_vpn), KERNEL_STACK_SIZE + PAGESIZE);
+}
 void unload_process(PCB *process) {
     if (process->status != TERMINATED) {
         panic("Unloading unterminated process\n");
     }
+    free_process_space(process);
     process->status = UNUSED;
-    ptref_free(process->ptbase_pfn, process->ptbase_vpn, process->ptref_base);
-    // remap guard page
-    ptmap(process->kernel_stack_vpn, process->kernel_stack_pfn, PTE_VALID | PTE_READ | PTE_WRITE);
-    kfree(PAGE_2_ADDR(process->kernel_stack_vpn), KERNEL_STACK_SIZE + PAGESIZE);
 }
 
 void run(int cpuid, PCB *process) {
@@ -109,20 +109,24 @@ void run(int cpuid, PCB *process) {
 
 void init_scheduler(void) {
     extern void _num_app(void);
-    uint64_t num_apps = *(const uint64_t *)_num_app;
     PCB *process = NULL;
     int cpuid = 0;
-    int appid = 0;
     for (uint64_t i = 0; i < NUM_PROCS; i++) {
-        if (appid == num_apps)
-            break;
         if (process_control_table[i].status == UNUSED) {
             if (!process)
                 process = process_control_table + i;
-            load_process(process_control_table + i, next_pid++, (void *)*((const uint64_t *)_num_app + 1 + (appid++)), cpuid);
+
             break;
         }
     }
+
+    // load init
+
+    process->status = READY;
+    process->cpuid = cpuid;
+    process->pid = next_pid;
+    process->flags = 0;
+    load_process(process, (void *)*((const uint64_t *)_num_app + 1));
 
     enable_timer_interrupt();
     set_next_trigger();

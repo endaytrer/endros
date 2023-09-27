@@ -1,6 +1,29 @@
 #define COUNTING_SYSTEM 10
 #define DIGIT_TO_CHAR(i) ((i >= 10) ? ('a' + (i - 10)) : '0' + i)
-#include "stdint.h"
+#include "string.h"
+
+int strcmp(const char *s1, const char *s2) {
+    while (*s1 != 0 && *s2 != 0) {
+        if (*s1 != *s2) {
+            return *s1 - *s2;
+        }
+        s1++;
+        s2++;
+    }
+    return *s1 - *s2;
+}
+
+void memset(void *start, uint8_t byte, uint64_t size) {
+    for (uint8_t *ptr = (uint8_t *)start; ptr < (uint8_t *)start + size; ++ptr) {
+        *ptr = byte;
+    }
+}
+
+void memcpy(void *dst, const void *src, uint64_t size) {
+    for (uint64_t i = 0; i < size; i++) {
+        *((uint8_t *)dst + i) = *((uint8_t *)src + i);
+    }
+}
 
 char *itoa(int64_t num, char *buffer) {
     char *ptr = buffer;
@@ -20,9 +43,6 @@ char *itoa(int64_t num, char *buffer) {
     }
     if (num == 0) {
         *(ptr++) = '0';
-    }
-    if (num == 1) {
-        *(ptr++) = '1';
     }
     int p = 1;
     while (p <= num) {

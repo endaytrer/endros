@@ -4,6 +4,7 @@
 #include "process.h"
 #include "mem.h"
 #include "timer.h"
+#include <string.h>
 
 #define SSTATUS_SPP 0x00000100
 
@@ -30,7 +31,7 @@ void trap_handler(void) {
     int cpuid = 0;
 
     cpus[cpuid].running->status = READY;
-    TrapContext *cx = cpus[cpuid].running->trapframe;
+    PCB *proc = cpus[cpuid].running;
     uint64_t scause;
     uint64_t stval;
 
@@ -55,8 +56,9 @@ void trap_handler(void) {
     } else {
         switch (trap_code) {
             case TRAP_Exception_UserEnvCall:
-                cx->sepc += 4;
-                cx->x[10] = syscall(cx->x[17], cx->x[10], cx->x[11], cx->x[12]);
+                proc->trapframe->sepc += 4;
+                uint64_t ret = syscall(proc->trapframe->x[17], proc->trapframe->x[10], proc->trapframe->x[11], proc->trapframe->x[12]);
+                proc->trapframe->x[10] = ret;
                 break;
             case TRAP_Exception_LoadPageFault:
                 printk("[kernel] Load Page fault in process.\n");

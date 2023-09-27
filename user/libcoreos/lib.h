@@ -1,6 +1,8 @@
 #ifndef __LIB_H
 #define __LIB_H
 #include <stdint.h>
+#include <string.h>
+
 #define STDIN 0
 #define STDOUT 1
 #define STDERR 2
@@ -19,5 +21,4 @@ pid_t fork(void);
 int64_t exec(const char *path);
 int64_t waitpid(pid_t pid);
 
-char *itoa(int64_t num, char *buffer);
 #endif

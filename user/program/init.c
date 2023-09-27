@@ -10,6 +10,7 @@ void _start() {
     if (pid == 0) {
         // child process
         write(STDOUT, "I'm the child!\n", 15);
+        exec("/bin/1");
     } else {
         write(STDOUT, "I'm the parent!\n", 16);
     }

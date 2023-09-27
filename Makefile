@@ -28,7 +28,13 @@ endif
 
 
 
-CFLAGS := -march=rv64gc_zifencei -Wall -ffreestanding -nostdlib -fno-omit-frame-pointer -g -O0
+
+# Utils. Compile both to kernel and user lib.
+UTIL := utils
+UTIL_C_SRCS := $(wildcard $(UTIL)/*.c)
+UTIL_C_HDRS := $(wildcard $(UTIL)/*.h)
+
+CFLAGS := -march=rv64gc_zifencei -Wall -ffreestanding -nostdlib -fno-omit-frame-pointer -g -O0 -I$(UTIL)
 
 # Kernel
 KERNEL := kernel
@@ -36,10 +42,12 @@ KERNEL_C_SRCS := $(wildcard $(KERNEL)/*.c)
 CONFIG_HDR := $(KERNEL)/machine.h
 KERNEL_C_HDRS := $(wildcard $(KERNEL)/*.h)
 KERNEL_C_HDRS += $(CONFIG_HDR)
+KERNEL_C_HDRS += $(UTIL_C_HDRS)
 KERNEL_ASM_SRCS := $(wildcard $(KERNEL)/*.S)
 
 KERNEL_OBJS := $(patsubst $(KERNEL)/%.c, $(KERNEL)/%.o, $(KERNEL_C_SRCS))
 KERNEL_OBJS += $(patsubst $(KERNEL)/%.S, $(KERNEL)/%.o, $(KERNEL_ASM_SRCS))
+KERNEL_OBJS += $(patsubst $(UTIL)/%.c, $(KERNEL)/%.o, $(UTIL_C_SRCS))
 
 KERNEL_ELF := coreos
 KERNEL_BIN := coreos.img
@@ -54,10 +62,12 @@ USER_LINKER_SCRIPT := $(USER)/user.ld
 
 USER_LIB_C_SRCS := $(wildcard $(USER_LIB)/*.c)
 USER_LIB_C_HDRS := $(wildcard $(USER_LIB)/*.h)
+USER_LIB_C_HDRS += $(UTIL_C_HDRS)
 USER_LIB_ASM_SRCS := $(wildcard $(USER_LIB)/*.S)
 
 USER_LIB_OBJS := $(patsubst $(USER_LIB)/%.c, $(USER_LIB)/%.o, $(USER_LIB_C_SRCS))
 USER_LIB_OBJS += $(patsubst $(USER_LIB)/%.S, $(USER_LIB)/%.o, $(USER_LIB_ASM_SRCS))
+USER_LIB_OBJS += $(patsubst $(UTIL)/%.c, $(USER_LIB)/%.o, $(UTIL_C_SRCS))
 
 USER_BIN_SRCS := $(wildcard $(USER_BIN)/*.c)
 USER_BIN_OBJS := $(patsubst $(USER_BIN)/%.c, $(USER_BIN)/%.o, $(USER_BIN_SRCS))
@@ -107,6 +117,9 @@ $(KERNEL)/%.o: $(KERNEL)/%.c $(KERNEL_C_HDRS)
 $(KERNEL)/%.o: $(KERNEL)/%.S $(KERNEL_C_HDRS)
 	$(AS) $(ASFLAGS) -c -o $@ $<
 
+$(KERNEL)/%.o: $(UTIL)/%.c $(UTIL_C_HDRS)
+	$(CC) -fPIC $(CFLAGS) -c -o $@ $<
+
 $(CONFIG_HDR): $(CONFIG) $(GENHDRS)
 	$(GENHDRS) -o $@ -c $<
 
@@ -125,6 +138,9 @@ $(USER_LIB)/%.o: $(USER_LIB)/%.c
 
 $(USER_LIB)/%.o: $(USER_LIB)/%.S
 	$(AS) -fPIC $(ASFLAGS) -c -o $@ $^
+
+$(USER_LIB)/%.o: $(UTIL)/%.c $(UTIL_C_HDRS)
+	$(CC) -fPIC $(CFLAGS) -c -o $@ $<
 
 $(INCLUDE_DST)/%.h: $(USER_LIB)/%.h | $(INCLUDE_DST)
 	cp $^ $@

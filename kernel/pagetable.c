@@ -1,5 +1,6 @@
-#include "pagetable.h"
+#include <string.h>
 #include "printk.h"
+#include "pagetable.h"
 
 pfn_t pfn_start;
 pfn_t pt_base;

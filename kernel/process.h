@@ -49,8 +49,9 @@ extern CPU cpus[NCPU];
 
 
 
-void load_process(PCB *process, pid_t pid, void *app_start, int cpuid);
+void load_process(PCB *process, void *app_start);
 void unload_process(PCB *process);
+void free_process_space(PCB *process);
 void init_scheduler(void);
 void schedule(int cpuid);
 

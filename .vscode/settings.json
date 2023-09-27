@@ -2,6 +2,7 @@
     "files.associations": {
         "*.m": "matlab",
         "pagetable.h": "c",
-        "trap.h": "c"
+        "trap.h": "c",
+        "string.h": "c"
     }
 }
