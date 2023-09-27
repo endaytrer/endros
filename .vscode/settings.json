@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.m": "matlab",
+        "pagetable.h": "c",
+        "trap.h": "c"
+    }
+}

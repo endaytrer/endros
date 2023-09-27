@@ -286,7 +286,7 @@ void ptmap(vpn_t vpn, pfn_t pfn, uint64_t flags) {
     SET_FLAGS(pte, PTE_VALID);
 }
 
-void ptunmap(vpn_t vpn) {
+pfn_t ptunmap(vpn_t vpn) {
     // level 2
     pte_t *ptable = kpgdir;
     pte_t *pte = (pte_t *)(((uint64_t) ptable) | (VPN(2, vpn) << 3));
@@ -303,7 +303,7 @@ void ptunmap(vpn_t vpn) {
     if (!(*new_pte & PTE_VALID)) {
         panic("Cannot unmap unmapped page\n");
     } else {
-        SET_FLAGS(pte, PTE_VALID | PTE_READ | PTE_WRITE);
+        SET_FLAGS(new_pte, PTE_VALID | PTE_READ | PTE_WRITE);
     }
     SET_FLAGS(pte, PTE_VALID);
     pte = new_pte;
@@ -311,8 +311,10 @@ void ptunmap(vpn_t vpn) {
     // level 0
     ptable = (pte_t *)((VPN(2, vpn) << 21) | (VPN(1, vpn) << 12));
     new_pte = (pte_t *)(((uint64_t) ptable) | (VPN(0, vpn) << 3));
+    pfn_t pfn = GET_PFN(new_pte);
     SET_FLAGS(new_pte, 0);
     SET_FLAGS(pte, PTE_VALID);
+    return pfn;
 }
 
 void ptmap_physical(vpn_t vpn, pfn_t pfn, uint64_t flags) {

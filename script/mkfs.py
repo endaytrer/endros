@@ -44,7 +44,7 @@ class DirEntry(ctypes.Structure):
     _fields_ = [('name', ctypes.c_char * 60),
                 ('inode', ctypes.c_uint32)]
 
-parser = argparse.ArgumentParser(prog='mkfs', description='Making vsfs raw disk image from directory')
+parser = argparse.ArgumentParser(prog='mkfs.py', description='Making vsfs raw disk image from directory')
 parser.add_argument('directory')
 parser.add_argument('-o', '--output', required=True, help='Output disk image file')
 parser.add_argument('-s', '--size', default=str(DEFAULT_BLOCKS * BLOCK_SIZE), help=f"Number of blocks, default {DEFAULT_BLOCKS}")

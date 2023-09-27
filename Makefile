@@ -1,4 +1,18 @@
-PREFIX := riscv64-linux-gnu-
+ifndef PREFIX
+PREFIX := $(shell if riscv64-unknown-elf-objdump -i 2>&1 | grep 'elf64-big' >/dev/null 2>&1; \
+	then echo 'riscv64-unknown-elf-'; \
+	elif riscv64-elf-objdump -i 2>&1 | grep 'elf64-big' >/dev/null 2>&1; \
+	then echo 'riscv64-elf-'; \
+	elif riscv64-linux-gnu-objdump -i 2>&1 | grep 'elf64-big' >/dev/null 2>&1; \
+	then echo 'riscv64-linux-gnu-'; \
+	elif riscv64-unknown-linux-gnu-objdump -i 2>&1 | grep 'elf64-big' >/dev/null 2>&1; \
+	then echo 'riscv64-unknown-linux-gnu-'; \
+	else echo "***" 1>&2; \
+	echo "*** Error: Couldn't find a riscv64 version of GCC/binutils." 1>&2; \
+	echo "*** To turn off this error, run 'gmake PREFIX= ...'." 1>&2; \
+	echo "***" 1>&2; exit 1; fi)
+endif
+
 CC := $(PREFIX)gcc
 LD := $(PREFIX)ld
 AS := $(PREFIX)as
@@ -7,20 +21,21 @@ GDB := gdb-multiarch
 OBJCOPY := $(PREFIX)objcopy
 
 QEMU := qemu-system-riscv64
-QEMUOPTS := -machine virt -smp 4 -m 4G -nographic
+QEMUOPTS := -machine virt -nographic
 ifdef DEBUG
 QEMUOPTS += -s -S
 endif
 
-FSSIZE := 256MiB
-INODES := 1024
 
-CFLAGS := -Wall -Wextra -ffreestanding -nostdlib -fno-omit-frame-pointer -g -O0
+
+CFLAGS := -march=rv64gc_zifencei -Wall -ffreestanding -nostdlib -fno-omit-frame-pointer -g -O0
 
 # Kernel
 KERNEL := kernel
 KERNEL_C_SRCS := $(wildcard $(KERNEL)/*.c)
+CONFIG_HDR := $(KERNEL)/machine.h
 KERNEL_C_HDRS := $(wildcard $(KERNEL)/*.h)
+KERNEL_C_HDRS += $(CONFIG_HDR)
 KERNEL_ASM_SRCS := $(wildcard $(KERNEL)/*.S)
 
 KERNEL_OBJS := $(patsubst $(KERNEL)/%.c, $(KERNEL)/%.o, $(KERNEL_C_SRCS))
@@ -28,14 +43,14 @@ KERNEL_OBJS += $(patsubst $(KERNEL)/%.S, $(KERNEL)/%.o, $(KERNEL_ASM_SRCS))
 
 KERNEL_ELF := coreos
 KERNEL_BIN := coreos.img
-KERNEL_LINKER_SCRIPT := kernel.ld
-USER_LINKER_SCRIPT := user.ld
+KERNEL_LINKER_SCRIPT := $(KERNEL)/kernel.ld
 
 # User Library and Binary
 
 USER := user
 USER_LIB := $(USER)/libcoreos
 USER_BIN := $(USER)/program
+USER_LINKER_SCRIPT := $(USER)/user.ld
 
 USER_LIB_C_SRCS := $(wildcard $(USER_LIB)/*.c)
 USER_LIB_C_HDRS := $(wildcard $(USER_LIB)/*.h)
@@ -57,17 +72,27 @@ INCLUDE_DST := $(ROOTFS)/include
 
 USER_ELFS := $(patsubst $(USER_BIN)/%.o, $(BIN_DST)/%, $(USER_BIN_OBJS))
 USER_LIB_STATIC := $(LIB_DST)/libcoreos.a
-USER_LIB_DYNAMIC := $(LIB_DST)/libcoreos.so
 USER_HDRS := $(patsubst $(USER_LIB)/%.h, $(INCLUDE_DST)/%.h, $(USER_LIB_C_HDRS))
 
+SCRIPT := script
+MKFS := $(SCRIPT)/mkfs.py
+GENHDRS := $(SCRIPT)/genhdrs.py
 
+DEFCONF := defconf
+CONFIG := .config
 
-# Compiling kernel
-
-.PHONY: all clean qemu libcoreos kernel user
+.PHONY: all qemu libcoreos kernel user defconfig cleanall clean cleanconfig
 
 all: user kernel
 
+# Configuration
+
+
+defconfig:
+	cp $(DEFCONF) $(CONFIG)
+	$(GENHDRS) -o $(CONFIG_HDR) -c $(CONFIG)
+
+# Compiling kernel
 kernel: $(KERNEL_BIN)
 
 $(KERNEL_BIN): $(KERNEL_ELF)
@@ -76,23 +101,24 @@ $(KERNEL_BIN): $(KERNEL_ELF)
 $(KERNEL_ELF): $(KERNEL_OBJS) $(KERNEL_LINKER_SCRIPT)
 	$(LD) $(LDFLAGS) -T $(KERNEL_LINKER_SCRIPT) -o $@ $(KERNEL_OBJS)
 
-$(KERNEL)/%.o: $(KERNEL)/%.c
-	$(CC) -fPIC $(CFLAGS) -c -o $@ $^
+$(KERNEL)/%.o: $(KERNEL)/%.c $(KERNEL_C_HDRS)
+	$(CC) -fPIC $(CFLAGS) -c -o $@ $<
 
-$(KERNEL)/%.o: $(KERNEL)/%.S
-	$(AS) $(ASFLAGS) -c -o $@ $^
+$(KERNEL)/%.o: $(KERNEL)/%.S $(KERNEL_C_HDRS)
+	$(AS) $(ASFLAGS) -c -o $@ $<
 
+$(CONFIG_HDR): $(CONFIG) $(GENHDRS)
+	$(GENHDRS) -o $@ -c $<
 
-
+$(CONFIG):
+	@echo "\nYou should run 'make defconfig' to build default configuration, and then edit it.\n"
+	@exit 1
 # User library
 
-libcoreos: $(USER_LIB_STATIC) $(USER_LIB_DYNAMIC)
+libcoreos: $(USER_LIB_STATIC)
 
 $(USER_LIB_STATIC): $(USER_LIB_OBJS) | $(LIB_DST)
 	$(AR) rcs $@ $^
-
-$(USER_LIB_DYNAMIC): $(USER_LIB_OBJS) | $(LIB_DST)
-	$(CC) -shared $(CFLAGS) -o $@ $^
 
 $(USER_LIB)/%.o: $(USER_LIB)/%.c
 	$(CC) -fPIC $(CFLAGS) -c -o $@ $^
@@ -115,8 +141,8 @@ $(BIN_DST):
 # User programs
 user: $(FSIMG)
 
-$(FSIMG): $(USER_HDRS) $(USER_ELFS) $(USER_LIB_STATIC) $(USER_LIB_DYNAMIC) mkfs/mkfs
-	mkfs/mkfs -o $@ $(ROOTFS) -s$(FSSIZE) -i$(INODES)
+$(FSIMG): $(USER_HDRS) $(USER_ELFS) $(USER_LIB_STATIC) $(CONFIG) $(MKFS)
+	$(MKFS) -o $@ $(ROOTFS) -s $(shell $(GENHDRS) -g FSSIZE -c $(CONFIG)) -i $(shell $(GENHDRS) -g INODES -c $(CONFIG))
 
 $(BIN_DST)/%: $(USER_BIN)/%.o $(USER_LIB_STATIC) | $(BIN_DST)
 	$(LD) $(LDFLAGS) -T $(USER_LINKER_SCRIPT) -o $@ $^
@@ -127,20 +153,23 @@ $(USER_BIN)/%.o: $(USER_BIN)/%.c $(USER_HDRS)
 
 
 # Emulation
-
-qemu: $(FSIMG) $(KERNEL_BIN)
+qemu: $(CONFIG) $(FSIMG) $(KERNEL_BIN)
 	$(QEMU) $(QEMUOPTS) -kernel $(KERNEL_BIN) \
+		-smp $(shell $(GENHDRS) -g NCPU -c $(CONFIG)) \
+		-m $(shell $(GENHDRS) -g MEM_SIZE -c $(CONFIG)) \
 		-drive file=$(FSIMG),if=virtio,format=raw
 
 gdb: $(KERNEL_ELF)
 	$(GDB) \
 	-ex 'target remote localhost:1234' \
-	-ex 'b main' \
+	-ex 'b init' \
 	-ex 'c' \
 	$(KERNEL_ELF)
 	
 
 # clean
+cleanall: clean cleanconfig
+
 clean:
 	rm -f $(KERNEL_ELF) \
 	*.img \
@@ -150,3 +179,6 @@ clean:
 	$(LIB_DST)/* \
 	$(BIN_DST)/* \
 	$(INCLUDE_DST)/*
+
+cleanconfig:
+	rm -f $(CONFIG) $(CONFIG_HDR)

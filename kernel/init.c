@@ -1,9 +1,9 @@
 #include "sbi.h"
 #include "printk.h"
-#include "batch.h"
 #include "trap.h"
 #include "pagetable.h"
-
+#include "timer.h"
+#include "process.h"
 extern void sbss();
 extern void ebss();
 
@@ -22,16 +22,5 @@ void init(void) {
     );
     clear_bss();
     init_pagetable();
-    init_app_manager();
+    init_scheduler();
 }
-
-int main(void) {
-    init();
-    // load apps
-
-    run_next_app();
-
-    printk("\nDone!\n");
-    return 0;
-}
-

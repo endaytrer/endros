@@ -53,7 +53,7 @@ void ptref_free(pfn_t ptbase_pfn, vpn_t ptbase_vpn, PTReference_2 *ptref_base);
 pfn_t palloc_ptr(vpn_t vpn, uint64_t flags);
 void pfree(pfn_t pfn, vpn_t vpn);
 void ptmap(vpn_t vpn, pfn_t pfn, uint64_t flags);
-void ptunmap(vpn_t vpn);
+pfn_t ptunmap(vpn_t vpn);
 
 // managed memory allocation
 void *kalloc(uint64_t size);

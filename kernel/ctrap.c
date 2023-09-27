@@ -1,15 +1,17 @@
 #include "trap.h"
 #include "printk.h"
 #include "syscall.h"
-#include "batch.h"
+#include "process.h"
+#include "mem.h"
+#include "timer.h"
 
 #define SSTATUS_SPP 0x00000100
-extern AppManager app_manager;
+
 void set_sp(TrapContext *self, uint64_t sp) {
     self->x[2] = sp;
 }
 
-void trap_return(void) {
+void trap_return(int cpuid) {
     asm volatile (
         "csrw stvec, %0"
         :: "r" (TRAMPOLINE)
@@ -17,18 +19,18 @@ void trap_return(void) {
 
     extern void strampoline();
     extern void __restore();
-    uint64_t token = ((uint64_t)1 << 63) | app_manager.current_task.ptbase_pfn;
+    uint64_t token = ((uint64_t)1 << 63) | cpus[cpuid].running->ptbase_pfn;
     void (*restore)(void *trap_context, uint64_t user_token) = (void (*)(void *, uint64_t))(TRAMPOLINE + (uint64_t)__restore - (uint64_t)strampoline);
-    register uint64_t a0 asm("a0") = (uint64_t)TRAPFRAME;
-    register uint64_t a1 asm("a1") = token;
     asm volatile (
-        "fence.i\n\t"
-        "jr %0"
-        :: "r"(restore), "r" (a0), "r" (a1)
+        "fence.i"
     );
+    restore(TRAPFRAME, token);
 }
 void trap_handler(void) {
-    TrapContext *cx = PAGE_2_ADDR(app_manager.current_task.trap_vpn);
+    int cpuid = 0;
+
+    cpus[cpuid].running->status = READY;
+    TrapContext *cx = cpus[cpuid].running->trapframe;
     uint64_t scause;
     uint64_t stval;
 
@@ -38,37 +40,65 @@ void trap_handler(void) {
         : "=r" (scause), "=r" (stval)
     );
     char buf[16];
-    switch (scause) {
-        case TRAP_UserEnvCall:
-            cx->sepc += 4;
-            cx->x[10] = syscall(cx->x[17], cx->x[10], cx->x[11], cx->x[12]);
-            break;
-        case TRAP_LoadPageFault:
-            printk("Load Page fault in application.\n");
-            run_next_app();
-            break;
-        case TRAP_StorePageFault:
-            printk("Store Page fault in application.\n");
-            run_next_app();
-            break;
+    uint64_t trap_code = TRAP_CODE(scause);
+    if (scause & TRAP_Interrupt) {
+        switch (trap_code) {
+            case TRAP_Interrupt_SupervisorTimer:
+                set_next_trigger();
+                schedule(0);
+                break;
+            default:
+                printk("[kernel] Unsupported interrupt: ");
+                printk(itoa(scause, buf));
+                panic("\n");
+        }
+    } else {
+        switch (trap_code) {
+            case TRAP_Exception_UserEnvCall:
+                cx->sepc += 4;
+                cx->x[10] = syscall(cx->x[17], cx->x[10], cx->x[11], cx->x[12]);
+                break;
+            case TRAP_Exception_LoadPageFault:
+                printk("[kernel] Load Page fault in process.\n");
 
-        case TRAP_InstructionPageFault:
-            printk("Instruction Page fault in application.\n");
-            run_next_app();
-            break;
-        case TRAP_IllegalInstruction:
-            printk("Illegal instruction: ");
-            printk(itoa(stval, buf));
-            printk("\n");
-            run_next_app();
-            break;
-        default:
-            printk("Unsupported trap: ");
-            printk(itoa(scause, buf));
-            printk("\n");
-            run_next_app();
+                terminate(cpus[cpuid].running);
+                unload_process(cpus[cpuid].running);
+                schedule(cpuid);
+                break;
+            case TRAP_Exception_StorePageFault:
+                printk("[kernel] Store Page fault in application.\n");
+
+                terminate(cpus[cpuid].running);
+                unload_process(cpus[cpuid].running);
+                schedule(cpuid);
+                break;
+            case TRAP_Exception_InstructionPageFault:
+                printk("[kernel] Instruction Page fault in application.\n");
+                
+                terminate(cpus[cpuid].running);
+                unload_process(cpus[cpuid].running);
+                schedule(cpuid);
+                break;
+            case TRAP_Exception_IllegalInstruction:
+                printk("[kernel] Illegal instruction: ");
+                printk(itoa(stval, buf));
+                printk("\n");
+                
+                terminate(cpus[cpuid].running);
+                unload_process(cpus[cpuid].running);
+                schedule(cpuid);
+                break;
+            default:
+                printk("[kernel] Unsupported exception: ");
+                printk(itoa(scause, buf));
+                printk("\n");
+                
+                terminate(cpus[cpuid].running);
+                unload_process(cpus[cpuid].running);
+                schedule(cpuid);
+        }
     }
-    trap_return();
+    trap_return(cpuid);
 }
 
 void app_init_context(TrapContext *ptr, uint64_t entry, uint64_t user_sp, uint64_t kernel_sp) {

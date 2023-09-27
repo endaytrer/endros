@@ -24,6 +24,7 @@ static inline __attribute__((always_inline)) uint64_t sbi_call(uint64_t sbi, uin
     );
     return x10;
 }
+void set_timer(uint64_t);
 /* kputc: print a character on console. */
 void kputc(char);
 /* shutdown: shutdown machine */

@@ -1,6 +1,8 @@
 **/*.o
+.config
 coreos
 *.img
+kernel/machine.h
 rootfs/bin/*
 rootfs/lib/*
 rootfs/include/*

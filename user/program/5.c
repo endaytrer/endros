@@ -1,18 +1,14 @@
 #include <lib.h>
 
-
-void fibonacci(int k);
-
-void _start(void) {
-    fibonacci(5);
-    write(STDOUT, "Hello 5!\n", 10);
-    exit(0);
-}
-
 void fibonacci(int k) {
     if (k == 0) return;
-    char c[] = "0";
-    c[0] += k;
-    write(STDOUT, c, 2);
+    write(STDOUT, "5", 2);
+    for (volatile int i = 0; i < 1000000; i++) ;
     fibonacci(k - 1);
+}
+
+void _start(void) {
+    fibonacci(100);
+    write(STDOUT, "\nHello 5!\n", 10);
+    exit(0);
 }

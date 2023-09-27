@@ -1,0 +1,9 @@
+# Platform information
+
+CLOCK_FREQ = 10MHz
+NCPU       = 4
+MEM_SIZE   = 256M
+
+# filesystem configuration
+FSSIZE     = 256MiB
+INODES     = 1024
