@@ -1,25 +1,25 @@
 #include "lib.h"
 #include "syscall.h"
-int64_t read(uint64_t fd, char *buffer, uint64_t size) {
+i64 read(u64 fd, char *buffer, u64 size) {
     return sys_read(fd, buffer, size);
 }
-int64_t write(uint64_t fd, const char *buffer, uint64_t size) {
+i64 write(u64 fd, const char *buffer, u64 size) {
     return sys_write(fd, buffer, size);
 }
 
-int64_t exit(int32_t xstate) {
+i64 exit(i32 xstate) {
     return sys_exit(xstate);
 }
 
-int64_t yield(void) {
+i64 yield(void) {
     return sys_yield();
 }
 
-int64_t get_time(TimeVal *ts, uint64_t _tz) {
+i64 get_time(TimeVal *ts, u64 _tz) {
     return sys_get_time(ts, _tz);
 }
 
-void *sbrk(int64_t size) {
+void *sbrk(i64 size) {
     return (void *)sys_sbrk(size);
 }
 
@@ -27,9 +27,9 @@ void *sbrk(int64_t size) {
 pid_t fork(void) {
     return sys_fork();
 }
-int64_t exec(const char *path) {
+i64 exec(const char *path) {
     return sys_exec(path);
 }
-int64_t waitpid(pid_t pid) {
+i64 waitpid(pid_t pid) {
     return sys_waitpid(pid);
 }

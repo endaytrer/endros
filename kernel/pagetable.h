@@ -11,20 +11,18 @@
 #define PTE_READ     0x02
 #define PTE_VALID    0x01
 
-#define TRAMPOLINE ((void *)0xfffffffffffff000)
-#define TRAPFRAME ((void *)0xffffffffffffe000)
 #define VPN(level, vpn) ((vpn >> (level * 9)) & 0x1ff)
 #define PTE(pfn, flags) ((pfn << 10) | flags)
 #define SET_PFN(pte_p, pfn) *pte_p = ((*pte_p & ~(0xfffffffffffffc00)) | (pfn << 10))
 #define GET_PFN(pte_p) (*(pte_p) >> 10)
 #define SET_FLAGS(pte_p, flags) *pte_p = ((*pte_p & ~(0x3ff)) | flags)
 #define GET_FLAGS(pte_p) (*(pte_p) & 0x3ff)
-#define OFFSET(addr) ((uint64_t)(addr) & 0xfff)
+#define OFFSET(addr) ((u64)(addr) & 0xfff)
 
-typedef uint64_t pte_t;
+typedef u64 pte_t;
 typedef struct free_node_t {
     union {
-        uint64_t size;
+        u64 size;
         pfn_t pfn;
     } type;
     struct free_node_t *next;
@@ -46,20 +44,20 @@ typedef struct {
 vpn_t walkupt(PTReference_2 *ptref_base, vpn_t user_vpn);
 pfn_t uptalloc(vpn_t *out_vpn);
 void uptfree(pfn_t pfn, vpn_t vpn);
-void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t user_vpn, pfn_t pfn, uint64_t flags);
+void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t user_vpn, pfn_t pfn, u64 flags);
 void uptunmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t vpn);
 void ptref_free(pfn_t ptbase_pfn, vpn_t ptbase_vpn, PTReference_2 *ptref_base);
 void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_ptref_base, pfn_t src_ptbase_pfn, vpn_t src_ptbase_vpn, PTReference_2 *src_ptref_base);
 
 // kernel page stuff
-pfn_t palloc_ptr(vpn_t vpn, uint64_t flags);
+pfn_t palloc_ptr(vpn_t vpn, u64 flags);
 void pfree(pfn_t pfn, vpn_t vpn);
-void ptmap(vpn_t vpn, pfn_t pfn, uint64_t flags);
+void ptmap(vpn_t vpn, pfn_t pfn, u64 flags);
 pfn_t ptunmap(vpn_t vpn);
 
 // managed memory allocation
-void *kalloc(uint64_t size);
-void kfree(void *ptr, uint64_t size);
+void *kalloc(u64 size);
+void kfree(void *ptr, u64 size);
 
 // page mapping
 void init_pagetable(void);

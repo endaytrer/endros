@@ -1,7 +1,7 @@
 #ifndef _K_ELF_H
 #define _K_ELF_H
 
-#include <stdint.h>
+#include <type.h>
 
 
 #define EI_NIDENT (16)
@@ -32,11 +32,11 @@
 #define PT_LOPROC	0x70000000	/* Start of processor-specific */
 #define PT_HIPROC	0x7fffffff	/* End of processor-specific */
 
-typedef uint16_t Elf64_Half;
-typedef uint32_t Elf64_Word;
-typedef uint64_t Elf64_Xword;
-typedef uint64_t Elf64_Addr;
-typedef uint64_t Elf64_Off;
+typedef u16 Elf64_Half;
+typedef u32 Elf64_Word;
+typedef u64 Elf64_Xword;
+typedef u64 Elf64_Addr;
+typedef u64 Elf64_Off;
 
 typedef struct
 {

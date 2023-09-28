@@ -10,21 +10,33 @@ void _start() {
             read(STDIN, &ch, 1);
         }
         if (ch == '\r') {
+            write(STDOUT, "\n", 2);
             if (strcmp(buffer, "exit") == 0) {
                 exit(0);
             }
             int pid = fork();
             if (pid == 0) {
                 exec(buffer);
+                exit(-1);
             }
-            waitpid(pid);
+            if (pid > 0) {
+                waitpid(pid);
+            }
             memset(buffer, 0, 256);
             ptr = buffer;
-            write(STDOUT, "\nsh> ", 6);
+            write(STDOUT, "sh> ", 6);
         } else {
-            *ptr = ch;
-            write(STDOUT, ptr, 2);
-            ptr++;
+            if (ch == 127) {
+                if (ptr != buffer) {
+                    write(STDOUT, "\033[1D \033[1D", 10);
+                    *ptr-- = 0;
+                }
+            } else {
+
+                *ptr = ch;
+                write(STDOUT, ptr, 2);
+                ptr++;
+            }
         }
     }
 }

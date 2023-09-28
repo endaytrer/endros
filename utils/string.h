@@ -1,6 +1,6 @@
-#include <stdint.h>
+#include <type.h>
 
-char *itoa(int64_t num, char *buffer);
+char *itoa(i64 num, char *buffer);
 int strcmp(const char *s1, const char *s2);
-void memset(void *start, uint8_t byte, uint64_t size);
-void memcpy(void *dst, const void *src, uint64_t size);
+void memset(void *start, u8 byte, u64 size);
+void memcpy(void *dst, const void *src, u64 size);

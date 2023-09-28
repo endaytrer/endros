@@ -1,4 +1,5 @@
 #include <string.h>
+#include "drivers/virtio.h"
 #include "printk.h"
 #include "pagetable.h"
 
@@ -69,7 +70,7 @@ void uptfree(pfn_t pfn, vpn_t vpn) {
     ptfreelist->next = temp;
 }
 
-pfn_t palloc_ptr(vpn_t vpn, uint64_t flags) {
+pfn_t palloc_ptr(vpn_t vpn, u64 flags) {
     // Allocate one physical page to virtual page vpn. One have to manage the space once allocated.
     if (pfreelist) {
         pfn_t pfn = pfreelist->type.pfn;
@@ -93,13 +94,13 @@ void pfree(pfn_t pfn, vpn_t vpn) {
     pfreelist->next = temp;
 }
 
-void *kalloc(uint64_t size) {
-    uint64_t pages = ADDR_2_PAGEUP(size);
+void *kalloc(u64 size) {
+    u64 pages = ADDR_2_PAGEUP(size);
 
     FreeNode *p = freelist, *prev = NULL;
     while (p != NULL) {
         if (p->type.size > pages) {
-            FreeNode *newp = (FreeNode *)((uint64_t)p + pages * PAGESIZE);
+            FreeNode *newp = (FreeNode *)((u64)p + pages * PAGESIZE);
             newp->next = p->next;
             newp->type.size = (p->type.size - pages);
             if (prev)
@@ -120,17 +121,17 @@ void *kalloc(uint64_t size) {
         p = p->next;
     }
     void *ans = kbrk;
-    for (uint64_t i = 0; i < pages; i++) {
+    for (u64 i = 0; i < pages; i++) {
         palloc_ptr(ADDR_2_PAGE(kbrk), PTE_VALID | PTE_READ | PTE_WRITE);
         // discarding pfn returned, thus unable to reallocate.
-        kbrk = (void *)((uint64_t)kbrk + PAGESIZE);
+        kbrk = (void *)((u64)kbrk + PAGESIZE);
     }
     memset(ans, 0, size);
     return ans;
 }
 
-void kfree(void *ptr, uint64_t size) {
-    uint64_t pages = ADDR_2_PAGEUP(size);
+void kfree(void *ptr, u64 size) {
+    u64 pages = ADDR_2_PAGEUP(size);
     // lazy approach, leave fragments
     FreeNode *free_head = (FreeNode *)ptr;
     free_head->type.size = pages;
@@ -159,12 +160,12 @@ vpn_t walkupt(PTReference_2 *ptref_base, vpn_t user_vpn) {
     return *ptref0;
 
 }
-void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t user_vpn, pfn_t pfn, uint64_t flags) {
+void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t user_vpn, pfn_t pfn, u64 flags) {
     /* map in user page table
        if kernel_vpn is 0, the page cannot be referenced by kernel
      */
 
-    pte_t *pte = (pte_t *)((uint64_t)PAGE_2_ADDR(uptbase) | (VPN(2, user_vpn) << 3));
+    pte_t *pte = (pte_t *)ADDR(uptbase, VPN(2, user_vpn) << 3);
     PTReference_2 *ptref2 = ptref_base + VPN(2, user_vpn);
 
     if (!ptref2->ptable) {
@@ -177,7 +178,7 @@ void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t us
         ptref2->pt_ref = next_ptref;
     }
 
-    pte = (pte_t *)((uint64_t)ptref2->ptable | (VPN(1, user_vpn) << 3));
+    pte = (pte_t *)((u64)ptref2->ptable | (VPN(1, user_vpn) << 3));
     PTReference_1 *ptref1 = ptref2->pt_ref + VPN(1, user_vpn);
 
     if (!ptref1->ptable) {
@@ -190,7 +191,7 @@ void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t us
         ptref1->pt_ref = next_ptref;
     }
 
-    pte = (pte_t *)((uint64_t)ptref1->ptable | (VPN(0, user_vpn) << 3));
+    pte = (pte_t *)((u64)ptref1->ptable | (VPN(0, user_vpn) << 3));
     vpn_t *ptref0 = ptref1->pt_ref + VPN(0, user_vpn);
     *pte = PTE(pfn, flags);
     *ptref0 = kernel_vpn;
@@ -200,21 +201,21 @@ void uptunmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t user_vpn) {
     // unmap in user page table, auto freeing the page;
     // uiptbase is a page table, but using virtual addresses, to track lower level page tables
 
-    pte_t *pte = (pte_t *)((uint64_t)PAGE_2_ADDR(uptbase) | (VPN(2, user_vpn) << 3));
+    pte_t *pte = (pte_t *)ADDR(uptbase, VPN(2, user_vpn) << 3);
     PTReference_2 *ptref2 = ptref_base + VPN(2, user_vpn);
 
     if (!ptref2->ptable) {
         panic("Cannot unmap unmapped pages\n");
     }
 
-    pte = (pte_t *)((uint64_t)ptref2->ptable | (VPN(1, user_vpn) << 3));
+    pte = (pte_t *)((u64)ptref2->ptable | (VPN(1, user_vpn) << 3));
     PTReference_1 *ptref1 = ptref2->pt_ref + VPN(1, user_vpn);
 
     if (!ptref1->ptable) {
         panic("Cannot unmap unmapped pages\n");
     }
 
-    pte = (pte_t *)((uint64_t)ptref1->ptable | (VPN(0, user_vpn) << 3));
+    pte = (pte_t *)((u64)ptref1->ptable | (VPN(0, user_vpn) << 3));
     vpn_t *ptref0 = ptref1->pt_ref + VPN(0, user_vpn);
     pfn_t pfn = GET_PFN(pte);
     if (*ptref0) {
@@ -225,18 +226,18 @@ void uptunmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t user_vpn) {
     // cannot modify ptref0, since it needs to be managed by allocator.
 }
 void ptref_free(pfn_t ptbase_pfn, vpn_t ptbase_vpn, PTReference_2 *ptref_base) {
-    for (uint64_t i = 0; i < PAGESIZE / sizeof(pte_t); i++) {
-        pte_t *pte2 = (pte_t *)((uint64_t)PAGE_2_ADDR(ptbase_vpn) | (i << 3));
+    for (u64 i = 0; i < PAGESIZE / sizeof(pte_t); i++) {
+        pte_t *pte2 = (pte_t *)ADDR(ptbase_vpn, i << 3);
         PTReference_2 *ptref2 = ptref_base + i;
         if (!ptref2->ptable) continue;
 
-        for (uint64_t j = 0; j < PAGESIZE / sizeof(pte_t); j++) {
-            pte_t *pte1 = (pte_t *)((uint64_t)ptref2->ptable | (j << 3));
+        for (u64 j = 0; j < PAGESIZE / sizeof(pte_t); j++) {
+            pte_t *pte1 = (pte_t *)((u64)ptref2->ptable | (j << 3));
             PTReference_1 *ptref1 = ptref2->pt_ref + j;
             if (!ptref1->ptable) continue;
             
-            for (uint64_t k = 0; k < PAGESIZE / sizeof(pte_t); k++) {
-                pte_t *pte0 = (pte_t *)((uint64_t)ptref1->ptable | (k << 3));
+            for (u64 k = 0; k < PAGESIZE / sizeof(pte_t); k++) {
+                pte_t *pte0 = (pte_t *)((u64)ptref1->ptable | (k << 3));
                 vpn_t *ptref0 = ptref1->pt_ref + k;
                 if (!*ptref0) continue;
                 // freeing allocated page
@@ -258,8 +259,8 @@ void ptref_free(pfn_t ptbase_pfn, vpn_t ptbase_vpn, PTReference_2 *ptref_base) {
 void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_ptref_base, pfn_t src_ptbase_pfn, vpn_t src_ptbase_vpn, PTReference_2 *src_ptref_base) {
 
     // copy pagetable. copy-on-write NOT IMPLEMENTED
-    for (uint64_t i = 0; i < PAGESIZE / sizeof(pte_t); i++) {
-        pte_t *dst_pte2 = (pte_t *)((uint64_t)PAGE_2_ADDR(dst_ptbase_vpn) | (i << 3));
+    for (u64 i = 0; i < PAGESIZE / sizeof(pte_t); i++) {
+        pte_t *dst_pte2 = (pte_t *)ADDR(dst_ptbase_vpn, i << 3);
         PTReference_2 *src_ptref2 = src_ptref_base + i;
         PTReference_2 *dst_ptref2 = dst_ptref_base + i;
 
@@ -272,8 +273,8 @@ void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_p
         dst_ptref2->ptable = PAGE_2_ADDR(kernel_vpn_2);
         *dst_pte2 = PTE(pfn_2, PTE_VALID);
 
-        for (uint64_t j = 0; j < PAGESIZE / sizeof(pte_t); j++) {
-            pte_t *dst_pte1 = (pte_t *)((uint64_t)dst_ptref2->ptable | (j << 3));
+        for (u64 j = 0; j < PAGESIZE / sizeof(pte_t); j++) {
+            pte_t *dst_pte1 = (pte_t *)((u64)dst_ptref2->ptable | (j << 3));
             PTReference_1 *src_ptref1 = src_ptref2->pt_ref + j;
             PTReference_1 *dst_ptref1 = dst_ptref2->pt_ref + j;
             if (!src_ptref1->ptable) continue;
@@ -286,9 +287,9 @@ void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_p
             dst_ptref1->ptable = PAGE_2_ADDR(kernel_vpn_1);
             *dst_pte1 = PTE(pfn_1, PTE_VALID);
             
-            for (uint64_t k = 0; k < PAGESIZE / sizeof(pte_t); k++) {
-                pte_t *src_pte0 = (pte_t *)((uint64_t)src_ptref1->ptable | (k << 3));
-                pte_t *dst_pte0 = (pte_t *)((uint64_t)dst_ptref1->ptable | (k << 3));
+            for (u64 k = 0; k < PAGESIZE / sizeof(pte_t); k++) {
+                pte_t *src_pte0 = (pte_t *)((u64)src_ptref1->ptable | (k << 3));
+                pte_t *dst_pte0 = (pte_t *)((u64)dst_ptref1->ptable | (k << 3));
                 vpn_t *src_ptref0 = src_ptref1->pt_ref + k;
                 vpn_t *dst_ptref0 = dst_ptref1->pt_ref + k;
 
@@ -307,10 +308,10 @@ void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_p
     }
 }
 
-void ptmap(vpn_t vpn, pfn_t pfn, uint64_t flags) {
+void ptmap(vpn_t vpn, pfn_t pfn, u64 flags) {
     // level 2
     pte_t *ptable = kpgdir;
-    pte_t *pte = (pte_t *)(((uint64_t) ptable) | (VPN(2, vpn) << 3));
+    pte_t *pte = (pte_t *)(((u64) ptable) | (VPN(2, vpn) << 3));
 
     if (!(*pte & PTE_VALID)) {
         pfn_t temp_pfn = palloc();
@@ -322,7 +323,7 @@ void ptmap(vpn_t vpn, pfn_t pfn, uint64_t flags) {
 
     // level 1
     ptable = (pte_t *)(VPN(2, vpn) << 12);
-    pte_t *new_pte = (pte_t *)(((uint64_t) ptable) | (VPN(1, vpn) << 3));
+    pte_t *new_pte = (pte_t *)(((u64) ptable) | (VPN(1, vpn) << 3));
     if (!(*new_pte & PTE_VALID)) {
         pfn_t temp_pfn = palloc();
         *new_pte = PTE(temp_pfn, PTE_VALID | PTE_READ | PTE_WRITE);
@@ -334,7 +335,7 @@ void ptmap(vpn_t vpn, pfn_t pfn, uint64_t flags) {
 
     // level 0
     ptable = (pte_t *)((VPN(2, vpn) << 21) | (VPN(1, vpn) << 12));
-    new_pte = (pte_t *)(((uint64_t) ptable) | (VPN(0, vpn) << 3));
+    new_pte = (pte_t *)(((u64) ptable) | (VPN(0, vpn) << 3));
     *new_pte = PTE(pfn, flags);
     SET_FLAGS(pte, PTE_VALID);
 }
@@ -342,7 +343,7 @@ void ptmap(vpn_t vpn, pfn_t pfn, uint64_t flags) {
 pfn_t ptunmap(vpn_t vpn) {
     // level 2
     pte_t *ptable = kpgdir;
-    pte_t *pte = (pte_t *)(((uint64_t) ptable) | (VPN(2, vpn) << 3));
+    pte_t *pte = (pte_t *)(((u64) ptable) | (VPN(2, vpn) << 3));
 
     if (!(*pte & PTE_VALID)) {
         panic("Cannot unmap unmapped page\n");
@@ -352,7 +353,7 @@ pfn_t ptunmap(vpn_t vpn) {
 
     // level 1
     ptable = (pte_t *)(VPN(2, vpn) << 12);
-    pte_t *new_pte = (pte_t *)(((uint64_t) ptable) | (VPN(1, vpn) << 3));
+    pte_t *new_pte = (pte_t *)(((u64) ptable) | (VPN(1, vpn) << 3));
     if (!(*new_pte & PTE_VALID)) {
         panic("Cannot unmap unmapped page\n");
     } else {
@@ -363,18 +364,18 @@ pfn_t ptunmap(vpn_t vpn) {
 
     // level 0
     ptable = (pte_t *)((VPN(2, vpn) << 21) | (VPN(1, vpn) << 12));
-    new_pte = (pte_t *)(((uint64_t) ptable) | (VPN(0, vpn) << 3));
+    new_pte = (pte_t *)(((u64) ptable) | (VPN(0, vpn) << 3));
     pfn_t pfn = GET_PFN(new_pte);
     SET_FLAGS(new_pte, 0);
     SET_FLAGS(pte, PTE_VALID);
     return pfn;
 }
 
-void ptmap_physical(vpn_t vpn, pfn_t pfn, uint64_t flags) {
+void ptmap_physical(vpn_t vpn, pfn_t pfn, u64 flags) {
     pte_t *pte;
     pfn_t temp_pfn = pt_base;
     for (int level = 2; level > 0; level--) {
-        pte = (pte_t *)((uint64_t)PAGE_2_ADDR(temp_pfn) | (VPN(level, vpn) << 3));
+        pte = (pte_t *)ADDR(temp_pfn, VPN(level, vpn) << 3);
         if (!(*pte & PTE_VALID)) {
             temp_pfn = palloc();
             *pte = PTE(temp_pfn, PTE_VALID);
@@ -382,7 +383,7 @@ void ptmap_physical(vpn_t vpn, pfn_t pfn, uint64_t flags) {
             temp_pfn = GET_PFN(pte);
         }
     }
-    pte = (pte_t *)((uint64_t)PAGE_2_ADDR(temp_pfn) | (VPN(0, vpn) << 3));
+    pte = (pte_t *)ADDR(temp_pfn,VPN(0, vpn) << 3);
     *pte = PTE(pfn, flags);
 }
 
@@ -406,8 +407,8 @@ void init_pagetable(void) {
     // making the 0th entry pointing to itself (recursive mapping), and 1st entry pointing to it self with rw permission
     // in this way, first page = 0x000 000 000 xxx, does not have r/w permission
     // page directory = 0x000 000 001 000, with r/w permission, be specially careful about this.
-    *(pte_t *)((uint64_t)PAGE_2_ADDR(pt_base) | 0x000) = PTE(pt_base, PTE_VALID);
-    *(pte_t *)((uint64_t)PAGE_2_ADDR(pt_base) | 0x008) = PTE(pt_base, PTE_VALID | PTE_READ | PTE_WRITE);
+    *(pte_t *)ADDR(pt_base, 0x000) = PTE(pt_base, PTE_VALID);
+    *(pte_t *)ADDR(pt_base, 0x008) = PTE(pt_base, PTE_VALID | PTE_READ | PTE_WRITE);
     
     // map kernel code identically with r-x
     for (pfn_t pfn = ADDR_2_PAGE(stext); pfn < ADDR_2_PAGEUP(etext); ++pfn) {
@@ -424,8 +425,11 @@ void init_pagetable(void) {
     // map trampoline with r-x
     ptmap_physical(ADDR_2_PAGE(TRAMPOLINE), ADDR_2_PAGE(strampoline), PTE_VALID | PTE_READ | PTE_EXECUTE);
 
+    // map virtio device 0
+    ptmap_physical(ADDR_2_PAGE(VIRTIO0), ADDR_2_PAGE(VIRTIO0), PTE_VALID | PTE_READ | PTE_WRITE);
+
     // activate paging
-    uint64_t token = ((uint64_t)1 << 63) | pt_base;
+    u64 token = ((u64)1 << 63) | pt_base;
     asm volatile(
         "csrw satp, %0\n\t"
         "sfence.vma"

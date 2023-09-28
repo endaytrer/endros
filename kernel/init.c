@@ -4,23 +4,43 @@
 #include "pagetable.h"
 #include "timer.h"
 #include "process.h"
+#include "fdt.h"
+#include "drivers/virtio_blk.h"
+#include <string.h>
+
 extern void sbss();
 extern void ebss();
 
 
 void clear_bss(void) {
-    for (uint8_t *ptr = (uint8_t *)sbss; ptr != (uint8_t *)ebss; ptr++) {
+    for (u8 *ptr = (u8 *)sbss; ptr != (u8 *)ebss; ptr++) {
         *ptr = 0;
     }
 }
 
+void parse_dtb(struct fdt_header *dtb) {
+    // dtb discovery
+    char buf[16];
+    char *name_block = (char *)((u64)dtb + ntohl(dtb->off_dt_strings));
+    printk(name_block + 0x0);
+    printk("\n");
+    fdt32_t *fdt_structs = (fdt32_t *)((u64)dtb + ntohl(dtb->off_dt_struct));
+    for (u32 i = 0; i < ntohl(dtb->size_dt_struct) / sizeof(fdt32_t); i++) {
+        printk(itoa(ntohl(fdt_structs[i]), buf));
+        printk(" ");
+    }
+    printk("\n");
+}
 
-void init(void) {
+void init(u64 hart_id, struct fdt_header *dtb) {
     asm volatile(
         "csrw stvec, %0"
         :: "r" (TRAMPOLINE)
     );
+    // virtio device
     clear_bss();
     init_pagetable();
+    VirtIOBlk *blk = kalloc(sizeof(VirtIOBlk));
+    init_virtio_blk(blk, VIRTIO0);
     init_scheduler();
 }

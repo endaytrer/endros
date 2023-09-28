@@ -1,16 +1,16 @@
-#include <stdbool.h>
 #include <string.h>
-
 #include "printk.h"
 #include "syscall.h"
 #include "process.h"
 #include "pagetable.h"
+#include "block_device.h"
+
 extern const struct {
     const char *name;
     void (*elf)();
 } name_app_map[];
 
-int64_t sys_exec(const char *path) {
+i64 sys_exec(const char *path) {
     int cpuid = 0;
     PCB *proc = cpus[cpuid].running;
 
@@ -20,12 +20,12 @@ int64_t sys_exec(const char *path) {
     char *dist_ptr = kernel_path;
 
     // page 0;
-    uint64_t offset = OFFSET((uint64_t)path);
+    u64 offset = OFFSET((u64)path);
     vpn_t user_vpn = ADDR_2_PAGE(path);
     vpn_t kernel_vpn = walkupt(proc->ptref_base, user_vpn);
     bool within_page = false;
     while (!within_page) {
-        for (char *ptr = (char *)((uint64_t)PAGE_2_ADDR(kernel_vpn) | offset); ptr != PAGE_2_ADDR(kernel_vpn + 1);) {
+        for (char *ptr = (char *)(u64)ADDR(kernel_vpn, offset); ptr != PAGE_2_ADDR(kernel_vpn + 1);) {
             *dist_ptr = *ptr;
             if (*ptr == '\0') {
                 within_page = true;
@@ -40,8 +40,8 @@ int64_t sys_exec(const char *path) {
     }
     void (*elf)() = NULL;
     extern void _num_app();
-    uint64_t num_apps = *(const uint64_t *)_num_app;
-    for (uint64_t i = 0; i < num_apps; i++) {
+    u64 num_apps = *(const u64 *)_num_app;
+    for (u64 i = 0; i < num_apps; i++) {
         if (strcmp(name_app_map[i].name, kernel_path) == 0) {
             elf = name_app_map[i].elf;
             break;

@@ -1,4 +1,4 @@
-#define COUNTING_SYSTEM 10
+#define COUNTING_SYSTEM 16
 #define DIGIT_TO_CHAR(i) ((i >= 10) ? ('a' + (i - 10)) : '0' + i)
 #include "string.h"
 
@@ -13,19 +13,19 @@ int strcmp(const char *s1, const char *s2) {
     return *s1 - *s2;
 }
 
-void memset(void *start, uint8_t byte, uint64_t size) {
-    for (uint8_t *ptr = (uint8_t *)start; ptr < (uint8_t *)start + size; ++ptr) {
+void memset(void *start, u8 byte, u64 size) {
+    for (u8 *ptr = (u8 *)start; ptr < (u8 *)start + size; ++ptr) {
         *ptr = byte;
     }
 }
 
-void memcpy(void *dst, const void *src, uint64_t size) {
-    for (uint64_t i = 0; i < size; i++) {
-        *((uint8_t *)dst + i) = *((uint8_t *)src + i);
+void memcpy(void *dst, const void *src, u64 size) {
+    for (u64 i = 0; i < size; i++) {
+        *((u8 *)dst + i) = *((u8 *)src + i);
     }
 }
 
-char *itoa(int64_t num, char *buffer) {
+char *itoa(i64 num, char *buffer) {
     char *ptr = buffer;
     if (num < 0) {
         *(ptr++) = '-';
@@ -44,7 +44,7 @@ char *itoa(int64_t num, char *buffer) {
     if (num == 0) {
         *(ptr++) = '0';
     }
-    int p = 1;
+    i64 p = 1;
     while (p <= num) {
         p *= COUNTING_SYSTEM;
     }

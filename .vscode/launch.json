@@ -11,8 +11,7 @@
             "program": "${workspaceFolder}/coreos",
             "cwd": "${workspaceFolder}",
             "MIMode": "gdb",
-            "miDebuggerPath": "/usr/bin/gdb-multiarch",
-            "miDebuggerArgs": "-ex 'target remote localhost:1234'",
+            "miDebuggerPath": "/opt/homebrew/bin/riscv64-elf-gdb",
             "setupCommands": [
                 {
                     "description": "Enable pretty-printing for gdb",
@@ -21,7 +20,12 @@
                 },
                 {
                     "description": "Set Disassembly Flavor to AT&T",
-                    "text": "-gdb-set disassembly-flavor att",
+                    "text": "-gdb-set target-architecture rv64gc",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "target remote",
+                    "text": "-ex 'target remove localhost:1234'",
                     "ignoreFailures": true
                 }
             ],

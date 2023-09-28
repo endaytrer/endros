@@ -39,14 +39,22 @@ CFLAGS := -march=rv64gc_zifencei -Wall -ffreestanding -nostdlib -fno-omit-frame-
 # Kernel
 KERNEL := kernel
 KERNEL_C_SRCS := $(wildcard $(KERNEL)/*.c)
+KERNEL_ASM_SRCS := $(wildcard $(KERNEL)/*.S)
+
 CONFIG_HDR := $(KERNEL)/machine.h
+
+KERNEL_DRIVER := $(KERNEL)/drivers
+KERNEL_DRIVER_C_SRCS := $(wildcard $(KERNEL_DRIVER)/*.c)
+KERNEL_DRIVER_C_HDRS := $(wildcard $(KERNEL_DRIVER)/*.h)
+
 KERNEL_C_HDRS := $(wildcard $(KERNEL)/*.h)
 KERNEL_C_HDRS += $(CONFIG_HDR)
 KERNEL_C_HDRS += $(UTIL_C_HDRS)
-KERNEL_ASM_SRCS := $(wildcard $(KERNEL)/*.S)
+KERNEL_C_HDRS += $(KERNEL_DRIVER_C_HDRS)
 
 KERNEL_OBJS := $(patsubst $(KERNEL)/%.c, $(KERNEL)/%.o, $(KERNEL_C_SRCS))
 KERNEL_OBJS += $(patsubst $(KERNEL)/%.S, $(KERNEL)/%.o, $(KERNEL_ASM_SRCS))
+KERNEL_OBJS += $(patsubst $(KERNEL_DRIVER)/%.c, $(KERNEL)/%.o, $(KERNEL_DRIVER_C_SRCS))
 KERNEL_OBJS += $(patsubst $(UTIL)/%.c, $(KERNEL)/%.o, $(UTIL_C_SRCS))
 
 KERNEL_ELF := coreos
@@ -120,6 +128,9 @@ $(KERNEL)/%.o: $(KERNEL)/%.S $(KERNEL_C_HDRS)
 $(KERNEL)/%.o: $(UTIL)/%.c $(UTIL_C_HDRS)
 	$(CC) -fPIC $(CFLAGS) -c -o $@ $<
 
+$(KERNEL)/%.o: $(KERNEL_DRIVER)/%.c $(KERNEL_C_HDRS)
+	$(CC) -fPIC $(CFLAGS) -c -o $@ $<
+
 $(CONFIG_HDR): $(CONFIG) $(GENHDRS)
 	$(GENHDRS) -o $@ -c $<
 
@@ -173,7 +184,8 @@ qemu: $(CONFIG) $(FSIMG) $(KERNEL_BIN)
 	$(QEMU) $(QEMUOPTS) -kernel $(KERNEL_BIN) \
 		-smp $(shell $(GENHDRS) -g NCPU -c $(CONFIG)) \
 		-m $(shell $(GENHDRS) -g MEM_SIZE -c $(CONFIG)) \
-		-drive file=$(FSIMG),if=virtio,format=raw
+		-drive file=$(FSIMG),if=none,format=raw,id=x0 \
+		-device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
 
 gdb: $(KERNEL_ELF)
 	$(GDB) \

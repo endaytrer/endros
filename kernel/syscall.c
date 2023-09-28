@@ -13,9 +13,9 @@ static void(*syscall_table[])() = {
     [SYS_WAITPID]  = (void (*)())sys_waitpid,
 };
 
-int64_t syscall(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2) {
+i64 syscall(u64 id, u64 arg0, u64 arg1, u64 arg2) {
     if (!syscall_table[id]) {
         panic("[kernel] Unsupported syscall id\n");
     }
-    return ((int64_t (*)(uint64_t, uint64_t, uint64_t))(syscall_table[id]))(arg0, arg1, arg2);
+    return ((i64 (*)(u64, u64, u64))(syscall_table[id]))(arg0, arg1, arg2);
 }

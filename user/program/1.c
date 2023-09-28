@@ -4,7 +4,7 @@ void _start(void) {
     // write and exit
     write(STDOUT, "Hello 1!\n", 10);
 
-    int64_t *s = sbrk(sizeof(int64_t));
+    i64 *s = sbrk(sizeof(i64));
     *s = 16;
     char buf[16];
     write(STDOUT, itoa(*s, buf), 16);

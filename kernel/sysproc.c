@@ -7,47 +7,47 @@
 #include "pagetable.h"
 extern pid_t next_pid;
 
-int64_t sys_yield(void) {
+i64 sys_yield(void) {
     int cpuid = 0;
     schedule(cpuid);
     return 0;
 }
 
-int64_t sys_sbrk(int64_t size) {
+i64 sys_sbrk(i64 size) {
     int cpuid = 0;
     PCB *proc = cpus[cpuid].running;
     void *old_brk = proc->brk;
 
-    if ((uint64_t)old_brk + size >= HEAP_TOP || (uint64_t)old_brk + size < (uint64_t)proc->heap_bottom) {
+    if ((u64)old_brk + size >= HEAP_TOP || (u64)old_brk + size < (u64)proc->heap_bottom) {
         printk("[kernel] trying to allocate more than heap size / less than 0");
         return -1;
     }
     if (size > 0) {
-        for (int vpn = ADDR_2_PAGEUP(old_brk); vpn < ADDR_2_PAGEUP((uint64_t)old_brk + size); ++vpn) {
+        for (int vpn = ADDR_2_PAGEUP(old_brk); vpn < ADDR_2_PAGEUP((u64)old_brk + size); ++vpn) {
             vpn_t kernel_vpn;
             pfn_t pfn = uptalloc(&kernel_vpn);
             uptmap(proc->ptbase_vpn, proc->ptref_base, kernel_vpn, vpn, pfn, PTE_USER | PTE_VALID | PTE_READ | PTE_WRITE);
         }
     }
     if (size < 0) {
-        for (int vpn = ADDR_2_PAGEUP((uint64_t)old_brk + size); vpn < ADDR_2_PAGEUP(old_brk); ++vpn) {
+        for (int vpn = ADDR_2_PAGEUP((u64)old_brk + size); vpn < ADDR_2_PAGEUP(old_brk); ++vpn) {
             uptunmap(proc->ptbase_vpn, proc->ptref_base, vpn);
         }
     }
-    return (int64_t)old_brk;
+    return (i64)old_brk;
 }
 
-int64_t sys_get_time(TimeVal *ts, uint64_t _tz) {
+i64 sys_get_time(TimeVal *ts, u64 _tz) {
     int cpuid = 0;
     vpn_t kernel_vpn = walkupt(cpus[cpuid].running->ptref_base, ADDR_2_PAGE(ts));
-    TimeVal *kernel_ts = (TimeVal *)((uint64_t)PAGE_2_ADDR(kernel_vpn) | OFFSET(ts));
+    TimeVal *kernel_ts = (TimeVal *)ADDR(kernel_vpn, OFFSET(ts));
 
     kernel_ts->usec = get_time_us();
     kernel_ts->sec = ts->usec / MICRO_PER_SEC;
     return 0;
 }
 
-int64_t sys_exit(int32_t xstate) {
+i64 sys_exit(i32 xstate) {
     int cpuid = 0;
     PCB *proc = cpus[cpuid].running;
 
@@ -74,11 +74,11 @@ int64_t sys_exit(int32_t xstate) {
     return 0;
 }
 
-int64_t sys_fork(void) {
+i64 sys_fork(void) {
     int cpuid = 0;
     PCB *proc = cpus[cpuid].running;
     PCB *new_proc = NULL;
-    for (uint64_t i = 0; i < NUM_PROCS; i++) {
+    for (u64 i = 0; i < NUM_PROCS; i++) {
         if (process_control_table[i].status != UNUSED) {
             continue;
         }
@@ -116,7 +116,7 @@ int64_t sys_fork(void) {
     new_proc->trapframe = PAGE_2_ADDR(walkupt(ptref_base, ADDR_2_PAGE(TRAPFRAME)));
 
     // allocate kernel stack with guard page
-    uint8_t *kernel_sp = kalloc(KERNEL_STACK_SIZE + PAGESIZE);
+    u8 *kernel_sp = kalloc(KERNEL_STACK_SIZE + PAGESIZE);
 
     // ptunmaping guard page
     pfn_t kernel_stack_pfn = ptunmap(ADDR_2_PAGE(kernel_sp));
@@ -127,14 +127,14 @@ int64_t sys_fork(void) {
     kernel_sp += KERNEL_STACK_SIZE + PAGESIZE;
 
     // remap kernel stack
-    new_proc->trapframe->kernel_sp = (uint64_t)kernel_sp;
+    new_proc->trapframe->kernel_sp = (u64)kernel_sp;
 
     // set return code of new process to be 0
     new_proc->trapframe->x[10] = 0;
     return next_pid++;
 }
 
-int64_t sys_waitpid(pid_t pid) {
+i64 sys_waitpid(pid_t pid) {
     int cpuid = 0;
     PCB *proc = cpus[cpuid].running;
     PCB *child_proc = NULL;

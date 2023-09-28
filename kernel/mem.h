@@ -1,14 +1,18 @@
 #ifndef _K_MEM_H
 #define _K_MEM_H
-#include <stdint.h>
+#include <type.h>
 
 #define NULL ((void *)0)
 #define PAGESIZE 4096
 #define PAGE_2_ADDR(pn) ((void *)((pn) * PAGESIZE))
 
-#define ADDR_2_PAGE(addr) (((uint64_t)(addr)) / PAGESIZE)
-#define ADDR_2_PAGEUP(addr) (ADDR_2_PAGE(addr) + (((uint64_t)(addr) & (PAGESIZE - 1)) ? 1 : 0))
+#define ADDR_2_PAGE(addr) (((u64)(addr)) / PAGESIZE)
+#define ADDR_2_PAGEUP(addr) (ADDR_2_PAGE(addr) + (((u64)(addr) & (PAGESIZE - 1)) ? 1 : 0))
 
-typedef uint64_t pfn_t;
-typedef uint64_t vpn_t;
+#define ADDR(pn, offset) ((void *)(((pn) * PAGESIZE) | (offset)))
+
+#define TRAMPOLINE ((void *)0xfffffffffffff000)
+#define TRAPFRAME ((void *)0xffffffffffffe000)
+typedef u64 pfn_t;
+typedef u64 vpn_t;
 #endif

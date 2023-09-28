@@ -1,6 +1,6 @@
 #ifndef _K_TRAP_H
 #define _K_TRAP_H
-#include <stdint.h>
+#include <type.h>
 
 #define TRAP_Exception 0
 #define TRAP_Exception_InstructionMisaligned 0
@@ -30,20 +30,20 @@
 #define TRAP_Interrupt_SupervisorExternal 9 
 #define TRAP_Interrupt_VirtualSupervisorExternal 10
 
-#define TRAP_Interrupt ((uint64_t)1 << 63)
+#define TRAP_Interrupt ((u64)1 << 63)
 #define TRAP_CODE(trap) ((trap) & ~TRAP_Interrupt)
 #define SIE_STIMER (1 << 5)
 
 typedef struct {
-    uint64_t x[32];
-    uint64_t sstatus;
-    uint64_t sepc;
-    uint64_t kernel_satp;
-    uint64_t kernel_sp;
-    uint64_t trap_handler;
+    u64 x[32];
+    u64 sstatus;
+    u64 sepc;
+    u64 kernel_satp;
+    u64 kernel_sp;
+    u64 trap_handler;
 } TrapContext;
 
 void trap_return(int cpuid);
-void app_init_context(TrapContext *ptr, uint64_t entry, uint64_t user_sp, uint64_t kernel_sp);
+void app_init_context(TrapContext *ptr, u64 entry, u64 user_sp, u64 kernel_sp);
 
 #endif

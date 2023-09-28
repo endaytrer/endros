@@ -1,6 +1,6 @@
 #ifndef _K_PROCESS_H
 #define _K_PROCESS_H
-#include <stdint.h>
+#include <type.h>
 #include "pagetable.h"
 #include "trap.h"
 #include "machine.h"

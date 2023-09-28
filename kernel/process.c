@@ -1,4 +1,3 @@
-#include <stdbool.h>
 #include <string.h>
 #include "process.h"
 #include "elf.h"
@@ -28,24 +27,24 @@ void load_process(PCB *process, void *app_start) {
     Elf64_Ehdr *elf_header = (Elf64_Ehdr *)app_start;
     vpn_t max_vpn = 0;
     for (int i = 0; i < elf_header->e_phnum; i++) {
-        Elf64_Phdr *program_header = (Elf64_Phdr *)((uint64_t)app_start + elf_header->e_phoff) + i;
+        Elf64_Phdr *program_header = (Elf64_Phdr *)((u64)app_start + elf_header->e_phoff) + i;
         if (program_header->p_type != PT_LOAD) {
             continue;
         }
-        uint64_t start_va = program_header->p_vaddr;
-        uint64_t end_va = program_header->p_vaddr + program_header->p_memsz;
-        uint64_t flags = PTE_VALID | PTE_USER;
+        u64 start_va = program_header->p_vaddr;
+        u64 end_va = program_header->p_vaddr + program_header->p_memsz;
+        u64 flags = PTE_VALID | PTE_USER;
         flags |= (program_header->p_flags & PF_R) ? PTE_READ : 0;
         flags |= (program_header->p_flags & PF_W) ? PTE_WRITE : 0;
         flags |= (program_header->p_flags & PF_X) ? PTE_EXECUTE : 0;
-        void *program_start = (void *)((uint64_t)app_start + program_header->p_offset);
+        void *program_start = (void *)((u64)app_start + program_header->p_offset);
         if (ADDR_2_PAGEUP(end_va) > max_vpn)
             max_vpn = ADDR_2_PAGEUP(end_va);
         for (vpn_t vpn = ADDR_2_PAGE(start_va); vpn < ADDR_2_PAGEUP(end_va); ++vpn) {
             vpn_t kernel_vpn;
             pfn_t pfn = uptalloc(&kernel_vpn);
-            uint64_t offset = (uint64_t)PAGE_2_ADDR(vpn) - start_va;
-            memcpy(PAGE_2_ADDR(kernel_vpn), (void *)((uint64_t)program_start + offset), PAGESIZE);
+            u64 offset = (u64)PAGE_2_ADDR(vpn) - start_va;
+            memcpy(PAGE_2_ADDR(kernel_vpn), (void *)((u64)program_start + offset), PAGESIZE);
             uptmap(ptbase_vpn, ptref_base, kernel_vpn, vpn, pfn, flags);
         }
     }
@@ -72,7 +71,7 @@ void load_process(PCB *process, void *app_start) {
     process->trapframe = PAGE_2_ADDR(trap_vpn);
 
     // kernel stack with guard page
-    uint8_t *kernel_sp = kalloc(KERNEL_STACK_SIZE + PAGESIZE);
+    u8 *kernel_sp = kalloc(KERNEL_STACK_SIZE + PAGESIZE);
 
     // ptunmaping guard page
     pfn_t kernel_stack_pfn = ptunmap(ADDR_2_PAGE(kernel_sp));
@@ -82,7 +81,7 @@ void load_process(PCB *process, void *app_start) {
 
     kernel_sp += KERNEL_STACK_SIZE + PAGESIZE;
 
-    app_init_context(PAGE_2_ADDR(trap_vpn), elf_header->e_entry, (uint64_t)PAGE_2_ADDR(max_vpn) + USER_STACK_SIZE, (uint64_t)kernel_sp);
+    app_init_context(PAGE_2_ADDR(trap_vpn), elf_header->e_entry, (u64)PAGE_2_ADDR(max_vpn) + USER_STACK_SIZE, (u64)kernel_sp);
 }
 void free_process_space(PCB *process) {
     ptref_free(process->ptbase_pfn, process->ptbase_vpn, process->ptref_base);
@@ -111,7 +110,7 @@ void init_scheduler(void) {
     extern void _num_app(void);
     PCB *process = NULL;
     int cpuid = 0;
-    for (uint64_t i = 0; i < NUM_PROCS; i++) {
+    for (u64 i = 0; i < NUM_PROCS; i++) {
         if (process_control_table[i].status == UNUSED) {
             if (!process)
                 process = process_control_table + i;
@@ -126,7 +125,7 @@ void init_scheduler(void) {
     process->cpuid = cpuid;
     process->pid = next_pid++;
     process->flags = 0;
-    load_process(process, (void *)*((const uint64_t *)_num_app + 1));
+    load_process(process, (void *)*((const u64 *)_num_app + 1));
 
     enable_timer_interrupt();
     set_next_trigger();
@@ -135,7 +134,7 @@ void init_scheduler(void) {
 
 void schedule(int cpuid) {
     // round-robin scheduler
-    uint64_t id = cpus[cpuid].running - process_control_table;
+    u64 id = cpus[cpuid].running - process_control_table;
     bool flag = false;
     PCB *process = NULL;
     for (int target_id = (id + 1) % NUM_PROCS; !flag || target_id != (id + 1) % NUM_PROCS; target_id = (target_id + 1) % NUM_PROCS) {

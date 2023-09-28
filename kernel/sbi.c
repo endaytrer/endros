@@ -1,5 +1,5 @@
 #include "sbi.h"
-void set_timer(uint64_t timer) {
+void set_timer(u64 timer) {
     sbi_call(SBI_SET_TIMER, timer, 0, 0);
 }
 void kputc(char ch) {

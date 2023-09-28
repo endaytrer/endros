@@ -8,7 +8,7 @@
 
 #define SSTATUS_SPP 0x00000100
 
-void set_sp(TrapContext *self, uint64_t sp) {
+void set_sp(TrapContext *self, u64 sp) {
     self->x[2] = sp;
 }
 
@@ -20,8 +20,8 @@ void trap_return(int cpuid) {
 
     extern void strampoline();
     extern void __restore();
-    uint64_t token = ((uint64_t)1 << 63) | cpus[cpuid].running->ptbase_pfn;
-    void (*restore)(void *trap_context, uint64_t user_token) = (void (*)(void *, uint64_t))(TRAMPOLINE + (uint64_t)__restore - (uint64_t)strampoline);
+    u64 token = ((u64)1 << 63) | cpus[cpuid].running->ptbase_pfn;
+    void (*restore)(void *trap_context, u64 user_token) = (void (*)(void *, u64))(TRAMPOLINE + (u64)__restore - (u64)strampoline);
     asm volatile (
         "fence.i"
     );
@@ -32,8 +32,8 @@ void trap_handler(void) {
 
     cpus[cpuid].running->status = READY;
     PCB *proc = cpus[cpuid].running;
-    uint64_t scause;
-    uint64_t stval;
+    u64 scause;
+    u64 stval;
 
     asm volatile (
         "csrr %0, scause\n\t"
@@ -41,7 +41,7 @@ void trap_handler(void) {
         : "=r" (scause), "=r" (stval)
     );
     char buf[16];
-    uint64_t trap_code = TRAP_CODE(scause);
+    u64 trap_code = TRAP_CODE(scause);
     if (scause & TRAP_Interrupt) {
         switch (trap_code) {
             case TRAP_Interrupt_SupervisorTimer:
@@ -57,54 +57,41 @@ void trap_handler(void) {
         switch (trap_code) {
             case TRAP_Exception_UserEnvCall:
                 proc->trapframe->sepc += 4;
-                uint64_t ret = syscall(proc->trapframe->x[17], proc->trapframe->x[10], proc->trapframe->x[11], proc->trapframe->x[12]);
+                u64 ret = syscall(proc->trapframe->x[17], proc->trapframe->x[10], proc->trapframe->x[11], proc->trapframe->x[12]);
                 proc->trapframe->x[10] = ret;
                 break;
             case TRAP_Exception_LoadPageFault:
                 printk("[kernel] Load Page fault in process.\n");
-
-                terminate(cpus[cpuid].running);
-                unload_process(cpus[cpuid].running);
-                schedule(cpuid);
+                sys_exit(-1);
                 break;
             case TRAP_Exception_StorePageFault:
                 printk("[kernel] Store Page fault in application.\n");
-
-                terminate(cpus[cpuid].running);
-                unload_process(cpus[cpuid].running);
-                schedule(cpuid);
+                sys_exit(-2);
                 break;
             case TRAP_Exception_InstructionPageFault:
                 printk("[kernel] Instruction Page fault in application.\n");
-                
-                terminate(cpus[cpuid].running);
-                unload_process(cpus[cpuid].running);
-                schedule(cpuid);
+                sys_exit(-3);
                 break;
             case TRAP_Exception_IllegalInstruction:
                 printk("[kernel] Illegal instruction: ");
                 printk(itoa(stval, buf));
                 printk("\n");
                 
-                terminate(cpus[cpuid].running);
-                unload_process(cpus[cpuid].running);
-                schedule(cpuid);
+                sys_exit(-4);
                 break;
             default:
                 printk("[kernel] Unsupported exception: ");
                 printk(itoa(scause, buf));
                 printk("\n");
                 
-                terminate(cpus[cpuid].running);
-                unload_process(cpus[cpuid].running);
-                schedule(cpuid);
+                sys_exit(-5);
         }
     }
     trap_return(cpuid);
 }
 
-void app_init_context(TrapContext *ptr, uint64_t entry, uint64_t user_sp, uint64_t kernel_sp) {
-    uint64_t sstatus, satp;
+void app_init_context(TrapContext *ptr, u64 entry, u64 user_sp, u64 kernel_sp) {
+    u64 sstatus, satp;
     asm volatile(
         "csrr %0, sstatus\n\t"
         "csrr %1, satp"
@@ -117,5 +104,5 @@ void app_init_context(TrapContext *ptr, uint64_t entry, uint64_t user_sp, uint64
     ptr->sepc = entry;
     ptr->kernel_satp = satp;
     ptr->kernel_sp = kernel_sp;
-    ptr->trap_handler = (uint64_t)trap_handler;
+    ptr->trap_handler = (u64)trap_handler;
 }

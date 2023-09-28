@@ -1,6 +1,6 @@
 #ifndef _K_SYSCALL_H
 #define _K_SYSCALL_H
-#include <stdint.h>
+#include <type.h>
 
 
 #define SYS_READ     63
@@ -15,19 +15,19 @@
 
 typedef int pid_t;
 typedef struct {
-    uint64_t sec;
-    uint64_t usec;
+    u64 sec;
+    u64 usec;
 } TimeVal;
 
-int64_t sys_write(uint64_t fd, const char *buf, uint64_t size);
-int64_t sys_read(uint64_t fd, char *buf, uint64_t size);
-int64_t sys_exit(int32_t xstate);
-int64_t sys_yield(void);
-int64_t sys_get_time(TimeVal *ts, uint64_t _tz);
-int64_t sys_sbrk(int64_t size);
-int64_t syscall(uint64_t id, uint64_t arg0, uint64_t arg1, uint64_t arg2);
-int64_t sys_fork(void);
-int64_t sys_exec(const char *path);
-int64_t sys_waitpid(pid_t pid);
+i64 sys_write(u64 fd, const char *buf, u64 size);
+i64 sys_read(u64 fd, char *buf, u64 size);
+i64 sys_exit(i32 xstate);
+i64 sys_yield(void);
+i64 sys_get_time(TimeVal *ts, u64 _tz);
+i64 sys_sbrk(i64 size);
+i64 syscall(u64 id, u64 arg0, u64 arg1, u64 arg2);
+i64 sys_fork(void);
+i64 sys_exec(const char *path);
+i64 sys_waitpid(pid_t pid);
 
 #endif
