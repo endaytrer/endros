@@ -90,7 +90,26 @@ typedef struct {
     u32 negotiated_features;
 } VirtIOBlk;
 
+typedef struct {
+    enum {
+        In,
+        Out
+    } req_type;
+    u32 reserved;
+    u64 sector;
+} VirtIOBlkReq;
+
+#define VIRTIO_BLK_RESP_STATUS_OK 0
+#define VIRTIO_BLK_RESP_STATUS_IO_ERR 1
+#define VIRTIO_BLK_RESP_STATUS_UNSUPPORTED 2
+#define VIRTIO_BLK_RESP_STATUS_NOT_READY 3
+
+typedef struct {
+    u8 status;
+} VirtIOBlkResp;
+
 void init_virtio_blk(VirtIOBlk *blk, VirtIOHeader *header);
 
-
+i64 write_block(VirtIOBlk *blk, u64 block_id, vpn_t buf_vpn, pfn_t buf_pfn);
+i64 read_block(VirtIOBlk *blk, u64 block_id, vpn_t buf_vpn, pfn_t buf_pfn);
 #endif

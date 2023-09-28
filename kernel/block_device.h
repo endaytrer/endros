@@ -5,6 +5,7 @@
 
 #define BLOCK_SIZE 4096
 typedef struct buf {
+    u8 data[BLOCK_SIZE];
     i32 valid;
     i32 disk;
     u32 dev;
@@ -13,6 +14,5 @@ typedef struct buf {
     u32 refcount;
     struct buf *prev;
     struct buf *next;
-    u8 data[BLOCK_SIZE];
 } BlockBuffer;
 #endif

@@ -162,9 +162,11 @@ typedef volatile struct {
 } VirtIOHeader;
 
 
-#define VIRTIO_NUM_DESC 8
+#define VIRTIO_NUM_DESC 16
+
 #define VRING_DESC_F_NEXT  1 // chained with another descriptor
 #define VRING_DESC_F_WRITE 2 // device writes (vs read)
+#define VRING_DESC_F_INDIRECT 4 // it is a indirect descriptor
 
 typedef volatile struct {
     u64 addr;
@@ -213,6 +215,7 @@ typedef struct {
     bool event_idx;
     bool indirect;
     VirtQueueDesc *indirect_lists[VIRTIO_NUM_DESC];
+    pfn_t indirect_pfns[VIRTIO_NUM_DESC];
     union {
         struct {
             struct dma_t dma;
@@ -231,13 +234,19 @@ typedef struct {
 
 bool queue_used(VirtIOHeader *hdr, u16 idx);
 void init_queue(VirtIOQueue *queue, VirtIOHeader *hdr, u16 idx, bool indirect, bool event_idx);
-
+i32 add_queue(VirtIOQueue *queue,
+              pfn_t inputs[],
+              u32 input_lengths[],
+              u8 num_inputs,
+              pfn_t outputs[],
+              u32 output_lengths[],
+              u8 num_outputs);
 /**
  * headers init
  * 
  * returning negotiated features of VirtIO Header;
 */
-u32 header_init(VirtIOHeader *hdr, u32 supported_features);
+i32 header_init(VirtIOHeader *hdr, u32 supported_features);
 /**
  * finish init
 */

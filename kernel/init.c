@@ -42,5 +42,8 @@ void init(u64 hart_id, struct fdt_header *dtb) {
     init_pagetable();
     VirtIOBlk *blk = kalloc(sizeof(VirtIOBlk));
     init_virtio_blk(blk, VIRTIO0);
+    vpn_t super_block_vpn;
+    pfn_t super_block_pfn = uptalloc(&super_block_vpn);
+    read_block(blk, 0, super_block_vpn, super_block_pfn);
     init_scheduler();
 }
