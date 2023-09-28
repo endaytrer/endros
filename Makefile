@@ -184,6 +184,7 @@ qemu: $(CONFIG) $(FSIMG) $(KERNEL_BIN)
 	$(QEMU) $(QEMUOPTS) -kernel $(KERNEL_BIN) \
 		-smp $(shell $(GENHDRS) -g NCPU -c $(CONFIG)) \
 		-m $(shell $(GENHDRS) -g MEM_SIZE -c $(CONFIG)) \
+		-global virtio-mmio.force-legacy=false \
 		-drive file=$(FSIMG),if=none,format=raw,id=x0 \
 		-device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
 

@@ -14,8 +14,8 @@ void load_process(PCB *process, void *app_start) {
 
     vpn_t ptbase_vpn;
 
-    pfn_t app_ptbase = uptalloc(&ptbase_vpn);
-    process->ptbase_pfn = app_ptbase;
+    pfn_t ptbase_pfn = uptalloc(&ptbase_vpn);
+    process->ptbase_pfn = ptbase_pfn;
     process->ptbase_vpn = ptbase_vpn;
 
     PTReference_2 *ptref_base = kalloc(2 * PAGESIZE);

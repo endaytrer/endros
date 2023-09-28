@@ -4,7 +4,7 @@
 .global name_app_map
 _num_app:
 
-    .quad 5
+    .quad 6
     .quad init_start
     # table for name - address
 name_app_map:
@@ -18,6 +18,8 @@ name_app_map:
     .quad app_3_start
     .quad name_4
     .quad app_4_start
+    .quad name_5
+    .quad app_5_start
     
 .section .rodata
 
@@ -29,21 +31,26 @@ app_0_start:
     .incbin "rootfs/bin/sh"
 
 name_1:
-    .asciz "/bin/2"
+    .asciz "/bin/1"
 app_1_start:
-    .incbin "rootfs/bin/2"
+    .incbin "rootfs/bin/1"
 
 name_2:
-    .asciz "/bin/3"
+    .asciz "/bin/2"
 app_2_start:
-    .incbin "rootfs/bin/3"
+    .incbin "rootfs/bin/2"
 
 name_3:
-    .asciz "/bin/4"
+    .asciz "/bin/3"
 app_3_start:
-    .incbin "rootfs/bin/4"
+    .incbin "rootfs/bin/3"
 
 name_4:
-    .asciz "/bin/5"
+    .asciz "/bin/4"
 app_4_start:
+    .incbin "rootfs/bin/4"
+
+name_5:
+    .asciz "/bin/5"
+app_5_start:
     .incbin "rootfs/bin/5"

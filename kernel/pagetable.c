@@ -50,7 +50,7 @@ pfn_t uptalloc(vpn_t *out_vpn) {
         pfn_t pfn = ptfreelist->type.pfn;
         FreeNode *next = ptfreelist->next;
         vpn_t vpn = ADDR_2_PAGE(ptfreelist);
-        memset(ptfreelist, 0, sizeof(FreeNode));
+        memset(ptfreelist, 0, PAGESIZE);
         ptfreelist = next;
         *out_vpn = vpn;
         return pfn;
@@ -317,24 +317,34 @@ void ptmap(vpn_t vpn, pfn_t pfn, u64 flags) {
         pfn_t temp_pfn = palloc();
         // we have to temporally set r+w flags, since we are goint to modify its children.
         *pte = PTE(temp_pfn, PTE_VALID | PTE_READ | PTE_WRITE);
+
+        // after palloc, we have to clean allocated page.
+        // accessing the page is 000 000 VPN(2) offset
+        memset(PAGE_2_ADDR(VPN(2, vpn)), 0, PAGESIZE);
+        // accessing
     } else {
         SET_FLAGS(pte, PTE_VALID | PTE_READ | PTE_WRITE);
     }
 
     // level 1
-    ptable = (pte_t *)(VPN(2, vpn) << 12);
+    ptable = (pte_t *)PAGE_2_ADDR(VPN(2, vpn));
     pte_t *new_pte = (pte_t *)(((u64) ptable) | (VPN(1, vpn) << 3));
     if (!(*new_pte & PTE_VALID)) {
         pfn_t temp_pfn = palloc();
         *new_pte = PTE(temp_pfn, PTE_VALID | PTE_READ | PTE_WRITE);
+
+        // after palloc, we have to clean allocated page.
+        // accessing the page is 000 VPN(2) VPN(1) offset
+        SET_FLAGS(pte, PTE_VALID);
+        memset(PAGE_2_ADDR((VPN(2, vpn) << 9) | VPN(1, vpn)), 0, PAGESIZE);
     } else {
         SET_FLAGS(new_pte, PTE_VALID | PTE_READ | PTE_WRITE);
+        SET_FLAGS(pte, PTE_VALID);
     }
-    SET_FLAGS(pte, PTE_VALID);
     pte = new_pte;
 
     // level 0
-    ptable = (pte_t *)((VPN(2, vpn) << 21) | (VPN(1, vpn) << 12));
+    ptable = (pte_t *)PAGE_2_ADDR((VPN(2, vpn) << 9) | VPN(1, vpn));
     new_pte = (pte_t *)(((u64) ptable) | (VPN(0, vpn) << 3));
     *new_pte = PTE(pfn, flags);
     SET_FLAGS(pte, PTE_VALID);
@@ -378,6 +388,7 @@ void ptmap_physical(vpn_t vpn, pfn_t pfn, u64 flags) {
         pte = (pte_t *)ADDR(temp_pfn, VPN(level, vpn) << 3);
         if (!(*pte & PTE_VALID)) {
             temp_pfn = palloc();
+            memset(PAGE_2_ADDR(temp_pfn), 0, PAGESIZE);
             *pte = PTE(temp_pfn, PTE_VALID);
         } else {
             temp_pfn = GET_PFN(pte);
@@ -403,6 +414,7 @@ void init_pagetable(void) {
     // map recursive page table
     pfn_start = ADDR_2_PAGE(ekernel);
     pt_base = palloc();
+    memset(PAGE_2_ADDR(pt_base), 0, PAGESIZE);
 
     // making the 0th entry pointing to itself (recursive mapping), and 1st entry pointing to it self with rw permission
     // in this way, first page = 0x000 000 000 xxx, does not have r/w permission
