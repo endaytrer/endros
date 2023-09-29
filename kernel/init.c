@@ -45,5 +45,11 @@ void init(u64 hart_id, struct fdt_header *dtb) {
     vpn_t super_block_vpn;
     pfn_t super_block_pfn = uptalloc(&super_block_vpn);
     read_block(blk, 0, super_block_vpn, super_block_pfn);
+    read_block(blk, 8, super_block_vpn, super_block_pfn);
+    read_block(blk, 16, super_block_vpn, super_block_pfn);
+    read_block(blk, 24, super_block_vpn, super_block_pfn);
+    read_block(blk, 32, super_block_vpn, super_block_pfn);
+    read_block(blk, 40, super_block_vpn, super_block_pfn);
+    read_block(blk, 48, super_block_vpn, super_block_pfn);
     init_scheduler();
 }

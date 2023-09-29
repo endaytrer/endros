@@ -12,12 +12,11 @@ PREFIX := $(shell if riscv64-unknown-elf-objdump -i 2>&1 | grep 'elf64-big' >/de
 	echo "*** To turn off this error, run 'gmake PREFIX= ...'." 1>&2; \
 	echo "***" 1>&2; exit 1; fi)
 endif
-
 CC := $(PREFIX)gcc
 LD := $(PREFIX)ld
 AS := $(PREFIX)as
 AR := $(PREFIX)ar
-GDB := gdb-multiarch
+GDB := $(PREFIX)gdb
 OBJCOPY := $(PREFIX)objcopy
 
 QEMU := qemu-system-riscv64
@@ -34,7 +33,7 @@ UTIL := utils
 UTIL_C_SRCS := $(wildcard $(UTIL)/*.c)
 UTIL_C_HDRS := $(wildcard $(UTIL)/*.h)
 
-CFLAGS := -march=rv64gc_zifencei -Wall -ffreestanding -nostdlib -fno-omit-frame-pointer -g -O0 -I$(UTIL)
+CFLAGS := -march=rv64gc_zifencei -Wall -ffreestanding -nostdlib -fno-omit-frame-pointer -g -O2 -I$(UTIL)
 
 # Kernel
 KERNEL := kernel

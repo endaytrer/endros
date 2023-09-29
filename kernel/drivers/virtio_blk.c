@@ -41,22 +41,12 @@ i64 write_block(VirtIOBlk *blk, u64 block_id, vpn_t buf_vpn, pfn_t buf_pfn) {
     u32 input_lengths[] = {sizeof(VirtIOBlkReq), PAGESIZE};
     pfn_t outputs[] = {resp_pfn};
     u32 output_lengths[] = {sizeof(VirtIOBlkResp)};
-    add_queue(&blk->queue, inputs, input_lengths, 2, outputs, output_lengths, 1);
+    queue_add_notify_pop(blk, inputs, input_lengths, 2, outputs, output_lengths, 1);
 
-    // write notify register to notify device
-    // TODO: should_notify
-
-    blk->hdr->queue_notify = blk->queue.queue_idx;
-    while (1) {
-        __sync_synchronize();
-        if (blk->queue.last_used_idx != blk->queue.used->idx)
-            break;
-    }
-
-
+    u8 status = resp->status;
     uptfree(req_pfn, req_vpn);
     uptfree(resp_pfn, resp_vpn);
-    return 0;
+    return status;
 }
 i64 read_block(VirtIOBlk *blk, u64 block_id, vpn_t buf_vpn, pfn_t buf_pfn) {
     vpn_t req_vpn;
@@ -76,26 +66,40 @@ i64 read_block(VirtIOBlk *blk, u64 block_id, vpn_t buf_vpn, pfn_t buf_pfn) {
     u32 input_lengths[] = {sizeof(VirtIOBlkReq)};
     pfn_t outputs[] = {buf_pfn, resp_pfn};
     u32 output_lengths[] = {PAGESIZE, sizeof(VirtIOBlkResp)};
-    add_queue(&blk->queue, inputs, input_lengths, 1, outputs, output_lengths, 2);
 
+    queue_add_notify_pop(blk, inputs, input_lengths, 1, outputs, output_lengths, 2);
+
+    u8 status = resp->status;
+    uptfree(req_pfn, req_vpn);
+    uptfree(resp_pfn, resp_vpn);
+    return status;
+}
+
+i64 queue_add_notify_pop(VirtIOBlk *blk, pfn_t inputs[], u32 input_lengths[], u8 num_inputs, pfn_t outputs[], u32 output_lengths[], u8 num_outputs) {
+    i32 token = add_queue(&blk->queue, inputs, input_lengths, 1, outputs, output_lengths, 2);
+    if (token < 0) {
+        printk("[kernel.drivers.virtio] add queue failed\n");
+        return -1;
+    }
     // write notify register to notify device
     // TODO: should_notify
-
-    blk->hdr->queue_notify = blk->queue.queue_idx;
+    if (should_notify(&blk->queue)) 
+        blk->hdr->queue_notify = blk->queue.queue_idx;
     while (1) {
         __sync_synchronize();
         if (blk->queue.last_used_idx != blk->queue.used->idx)
             break;
-        // interrupt method
-        u32 interrupt = blk->hdr->interrupt_status;
-        if (interrupt) {
-            blk->hdr->interrupt_ack = interrupt;
-            break;
-        }
     }
-    
+    u16 last_used_slot = blk->queue.last_used_idx & (VIRTIO_NUM_DESC - 1);
+    u16 index = (u16)blk->queue.used->ring[last_used_slot].id;
+    u32 len = blk->queue.used->ring[last_used_slot].len;
 
-    uptfree(req_pfn, req_vpn);
-    uptfree(resp_pfn, resp_vpn);
-    return 0;
+    if (index != token) {
+        printk("[kernel.drivers.virtio] used token error\n");
+        return -1;
+    }
+    recycle_descriptors(&blk->queue, index);
+    blk->queue.last_used_idx = (blk->queue.last_used_idx + 1) % (VIRTIO_NUM_DESC - 1);
+    return len;
+    // pop used
 }

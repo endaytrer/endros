@@ -60,8 +60,6 @@ void init_queue(VirtIOQueue *queue, VirtIOHeader *hdr, u16 idx, bool indirect, b
         /// allocate legacy. Assert within one page, since we only allocate one page here.
         /// In legacy mode, all three queues are assigned in a single page.
 
-        // vpn_t dma_vpn;
-        // pfn_t dma_pfn = uptalloc(&dma_vpn);
         // since we need TWO CONTIGUOUS PHYSICAL pages, we have to MANUALLY ALLOCATE by changing pbrk and pfn_start
 
         extern void *ptbrk;
@@ -201,6 +199,7 @@ i32 add_queue(VirtIOQueue *queue, pfn_t inputs[], u32 input_lengths[], u8 num_in
             panic("[kernel.drivers.virtio] queue indirect list head is not null\n");
         }
         queue->indirect_lists[head] = indirect_list;
+        queue->indirect_pfns[head] = indirect_pfn;
         // Write a descriptor pointting to indirect descriptor list.
         VirtQueueDesc *direct_desc = queue->desc_shadow + head;
         queue->free_head = direct_desc->next;
@@ -243,4 +242,51 @@ i32 add_queue(VirtIOQueue *queue, pfn_t inputs[], u32 input_lengths[], u8 num_in
     queue->avail->idx = queue->avail_idx;
     __sync_synchronize();
     return head;
+}
+void recycle_descriptors(VirtIOQueue *queue, u16 head) {
+    u16 original_free_head = queue->free_head;
+    queue->free_head = head;
+
+    VirtQueueDesc *head_desc = queue->desc_shadow + head;
+    if (head_desc->flags & VRING_DESC_F_INDIRECT) {
+        VirtQueueDesc *indirect_list = queue->indirect_lists[head];
+        pfn_t pfn = queue->indirect_pfns[head];
+        head_desc->addr = 0;
+        head_desc->len = 0;
+        queue->num_used -= 1;
+        head_desc->next = original_free_head;
+        queue->desc[head] = *head_desc;
+
+        // dealloc. since we allocate this using uptalloc(); we use uptfree();
+        // we do not have to free the addresses pointed from indirect list:
+        // - req / resp are handelled 
+        uptfree(pfn, ADDR_2_PAGE(indirect_list));
+        queue->indirect_lists[head] = NULL;
+        // apply changes. Don't know if it is necessary.
+    } else {
+        u16 next = head;
+        while (1) {
+            VirtQueueDesc *desc = queue->desc_shadow + next;
+            desc->addr = 0;
+            desc->len = 0;
+            queue->num_used -= 1;
+            if (desc->flags & VRING_DESC_F_NEXT) {
+                queue->desc[next] = *desc;
+                next = desc->next;
+            } else {
+                desc->next = original_free_head;
+                queue->desc[next] = *desc;
+                break;
+            }
+        }
+    }
+}
+bool should_notify(VirtIOQueue *queue) {
+    __sync_synchronize();
+    if (queue->event_idx) {
+        u16 avail_event = queue->used->avail_event;
+        return queue->avail_idx >= ((avail_event + 1) & (VIRTIO_NUM_DESC - 1));
+    } else {
+        return (queue->used->flags & 0x0001) == 0;
+    }
 }

@@ -112,4 +112,5 @@ void init_virtio_blk(VirtIOBlk *blk, VirtIOHeader *header);
 
 i64 write_block(VirtIOBlk *blk, u64 block_id, vpn_t buf_vpn, pfn_t buf_pfn);
 i64 read_block(VirtIOBlk *blk, u64 block_id, vpn_t buf_vpn, pfn_t buf_pfn);
+i64 queue_add_notify_pop(VirtIOBlk *blk, pfn_t inputs[], u32 input_lengths[], u8 num_inputs, pfn_t outputs[], u32 output_lengths[], u8 num_outputs);
 #endif

@@ -241,6 +241,10 @@ i32 add_queue(VirtIOQueue *queue,
               pfn_t outputs[],
               u32 output_lengths[],
               u8 num_outputs);
+
+void recycle_descriptors(VirtIOQueue *queue, u16 head);
+
+bool should_notify(VirtIOQueue *queue);
 /**
  * headers init
  * 

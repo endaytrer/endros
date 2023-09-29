@@ -4,7 +4,7 @@
 #include <type.h>
 #include "machine.h"
 #include "trap.h"
-#define TICKS_PER_SEC 100
+#define TICKS_PER_SEC 10
 #define MICRO_PER_SEC 1000000
 
 static inline __attribute__((always_inline)) void enable_timer_interrupt(void) {
