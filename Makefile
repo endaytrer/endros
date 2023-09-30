@@ -100,7 +100,7 @@ CONFIG := .config
 
 .PHONY: all qemu libcoreos kernel user defconfig cleanall clean cleanconfig
 
-all: user kernel
+all: kernel user
 
 # Configuration
 
@@ -121,7 +121,7 @@ $(KERNEL_ELF): $(KERNEL_OBJS) $(KERNEL_LINKER_SCRIPT)
 $(KERNEL)/%.o: $(KERNEL)/%.c $(KERNEL_C_HDRS)
 	$(CC) -fPIC $(CFLAGS) -c -o $@ $<
 
-$(KERNEL)/%.o: $(KERNEL)/%.S $(KERNEL_C_HDRS) $(FSIMG)
+$(KERNEL)/%.o: $(KERNEL)/%.S $(KERNEL_C_HDRS)
 	$(AS) $(ASFLAGS) -c -o $@ $<
 
 $(KERNEL)/%.o: $(UTIL)/%.c $(UTIL_C_HDRS)

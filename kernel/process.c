@@ -7,12 +7,20 @@
 #include "filesystem.h"
 #include "stdio.h"
 #include "fcntl.h"
+#include "fs_file.h"
+
+#define INIT_PROGRAM "/bin/init"
+
 
 PCB process_control_table[NUM_PROCS];
 CPU cpus[NCPU];
 pid_t next_pid = 1;
 
-void load_process(PCB *process, void *app_start) {
+i64 load_process(PCB *process, File *program) {
+    if (program->type != FILE || !(program->permission & PERMISSION_X)) {
+        printk("[kernel] do not have execute permission on file\n");
+        return -1;
+    }
     // set process to be ready;
 
     vpn_t ptbase_vpn;
@@ -27,10 +35,14 @@ void load_process(PCB *process, void *app_start) {
     // map trampoline
     extern void strampoline();
     uptmap(ptbase_vpn, ptref_base, 0, ADDR_2_PAGE(TRAMPOLINE), ADDR_2_PAGE(strampoline), PTE_VALID | PTE_READ | PTE_EXECUTE);
-    Elf64_Ehdr *elf_header = (Elf64_Ehdr *)app_start;
+
+    // since it is easier to deal with continuous virtual addresses, use kalloc.
+    void *buf = kalloc(program->size);
+    wrapped_read(program, 0, buf, program->size);
+    Elf64_Ehdr *elf_header = (Elf64_Ehdr *)buf;
     vpn_t max_vpn = 0;
     for (int i = 0; i < elf_header->e_phnum; i++) {
-        Elf64_Phdr *program_header = (Elf64_Phdr *)((u64)app_start + elf_header->e_phoff) + i;
+        Elf64_Phdr *program_header = (Elf64_Phdr *)((u64)buf + elf_header->e_phoff) + i;
         if (program_header->p_type != PT_LOAD) {
             continue;
         }
@@ -40,7 +52,7 @@ void load_process(PCB *process, void *app_start) {
         flags |= (program_header->p_flags & PF_R) ? PTE_READ : 0;
         flags |= (program_header->p_flags & PF_W) ? PTE_WRITE : 0;
         flags |= (program_header->p_flags & PF_X) ? PTE_EXECUTE : 0;
-        void *program_start = (void *)((u64)app_start + program_header->p_offset);
+        void *program_start = (void *)((u64)buf + program_header->p_offset);
         if (ADDR_2_PAGEUP(end_va) > max_vpn)
             max_vpn = ADDR_2_PAGEUP(end_va);
         for (vpn_t vpn = ADDR_2_PAGE(start_va); vpn < ADDR_2_PAGEUP(end_va); ++vpn) {
@@ -101,6 +113,7 @@ void load_process(PCB *process, void *app_start) {
         .open_flags = O_WRONLY,
         .seek = 0
     };
+    return 0;
 }
 void free_process_space(PCB *process) {
     ptref_free(process->ptbase_pfn, process->ptbase_vpn, process->ptref_base);
@@ -144,7 +157,13 @@ void init_scheduler(void) {
     process->cpuid = cpuid;
     process->pid = next_pid++;
     process->flags = 0;
-    load_process(process, (void *)*((const u64 *)_num_app + 1));
+    FSFile program_fsfile;
+    File program;
+    getfile(&rootfs.root, INIT_PROGRAM, &program_fsfile);
+    wrap_fsfile(&program, &program_fsfile);
+    if (load_process(process, &program) < 0) {
+        panic("[kernel] cannot load process\n");
+    }
 
     enable_timer_interrupt();
     set_next_trigger();

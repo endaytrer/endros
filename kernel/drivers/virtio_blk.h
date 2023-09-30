@@ -1,6 +1,7 @@
 #ifndef _K_VIRTIO_BLK_H
 #define _K_VIRTIO_BLK_H
 #include "virtio.h"
+#include "../block_device.h"
 
 /// Device supports request barriers. (legacy)
 #define VIRTIO_BLK_FEATURE_BARRIER        (1 << 0)
@@ -113,4 +114,6 @@ void init_virtio_blk(VirtIOBlk *blk, VirtIOHeader *header);
 i64 virtio_blk_write_block(VirtIOBlk *blk, u64 block_id, vpn_t buf_vpn, pfn_t buf_pfn);
 i64 virtio_blk_read_block(VirtIOBlk *blk, u64 block_id, vpn_t buf_vpn, pfn_t buf_pfn);
 i64 queue_add_notify_pop(VirtIOBlk *blk, pfn_t inputs[], u32 input_lengths[], u8 num_inputs, pfn_t outputs[], u32 output_lengths[], u8 num_outputs);
+
+void wrap_virtio_blk_device(BufferedBlockDevice *out, VirtIOBlk *in);
 #endif

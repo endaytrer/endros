@@ -103,3 +103,13 @@ i64 queue_add_notify_pop(VirtIOBlk *blk, pfn_t inputs[], u32 input_lengths[], u8
     return len;
     // pop used
 }
+
+void wrap_virtio_blk_device(BufferedBlockDevice *out, VirtIOBlk *in) {
+    out->cache_size = 0;
+    out->buffer_head = NULL;
+    out->super = in;
+    out->size = in->capacity * SECTOR_SIZE;
+    out->read_block = (i64 (*)(void *, u64, vpn_t, pfn_t)) virtio_blk_read_block;
+    out->write_block = (i64 (*)(void *, u64, vpn_t, pfn_t)) virtio_blk_write_block;
+
+}

@@ -3,8 +3,8 @@
 #include "syscall.h"
 #include "process.h"
 #include "pagetable.h"
-#include "block_device.h"
-
+#include "filesystem.h"
+#include "fs_file.h"
 extern const struct {
     const char *name;
     void (*elf)();
@@ -38,23 +38,22 @@ i64 sys_exec(const char *path) {
         kernel_vpn = walkupt(proc->ptref_base, user_vpn);
         offset = 0;
     }
-    void (*elf)() = NULL;
-    extern void _num_app();
-    u64 num_apps = *(const u64 *)_num_app;
-    for (u64 i = 0; i < num_apps; i++) {
-        if (strcmp(name_app_map[i].name, kernel_path) == 0) {
-            elf = name_app_map[i].elf;
-            break;
-        }
-    }
-    if (elf == NULL) {
-        printk("[kernel] Unable to find app named ");
-        printk(kernel_path);
-        printk("\n");
+    FSFile cwd;
+    cwd.inum = proc->cwd_inode;
+    cwd.fs = &rootfs;
+    fs_file_init(&cwd);
+
+
+    FSFile program;
+    if (getfile(&cwd, kernel_path, &program) < 0) {
+        printk("[kernel] Unable to find file\n");
         return -1;
     }
+
+    File wrapper;
+    wrap_fsfile(&wrapper, &program);
+
     kfree(kernel_path, 2 * PAGESIZE);
     free_process_space(cpus[cpuid].running);
-    load_process(cpus[cpuid].running, elf);
-    return 0;
+    return load_process(cpus[cpuid].running, &wrapper);
 }

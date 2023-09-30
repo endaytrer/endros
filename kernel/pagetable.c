@@ -95,6 +95,8 @@ void pfree(pfn_t pfn, vpn_t vpn) {
 }
 
 void *kalloc(u64 size) {
+    // Although not recommended, the caller may use more than size.
+    // so when freeing, always zero (pages * PAGESIZE) bytes.
     u64 pages = ADDR_2_PAGEUP(size);
 
     FreeNode *p = freelist, *prev = NULL;
@@ -107,14 +109,14 @@ void *kalloc(u64 size) {
                 prev->next = newp;
             else
                 freelist = newp;
-            memset(p, 0, sizeof(FreeNode));
+            memset(p, 0, pages * PAGESIZE);
             return p;
         } else if (p->type.size == pages) {
             if (prev)
                 prev->next = p->next;
             else
                 freelist = p->next;
-            memset(p, 0, sizeof(FreeNode));
+            memset(p, 0, pages * PAGESIZE);
             return p;
         }
         prev = p;
@@ -126,7 +128,7 @@ void *kalloc(u64 size) {
         // discarding pfn returned, thus unable to reallocate.
         kbrk = (void *)((u64)kbrk + PAGESIZE);
     }
-    memset(ans, 0, size);
+    memset(ans, 0, pages * PAGESIZE);
     return ans;
 }
 

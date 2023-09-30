@@ -13,6 +13,25 @@ int strcmp(const char *s1, const char *s2) {
     return *s1 - *s2;
 }
 
+int strncmp(const char *s1, const char *s2, u64 size) {
+    u64 i = 0;
+    for (; i < size && *s1 != 0 && *s2 != 0; i++) {
+        if (*s1 != *s2) {
+            return *s1 - *s2;
+        }
+        s1++;
+        s2++;
+    }
+    if (i == size) return 0;
+    return *s1 - *s2;
+}
+
+u64 strlen(const char *s) {
+    u64 ans = 0;
+    while (s[ans] != 0) ans++;
+    return ans;
+}
+
 void memset(void *start, u8 byte, u64 size) {
     for (u8 *ptr = (u8 *)start; ptr < (u8 *)start + size; ++ptr) {
         *ptr = byte;

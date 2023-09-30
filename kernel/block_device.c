@@ -3,17 +3,6 @@
 #include "block_device.h"
 #include "pagetable.h"
 
-void init_buffered_block_device(BufferedBlockDevice *buffered_blk_dev, void *super,
-    i64 (*read_block)(void *self, u64 sector, vpn_t vpn, pfn_t pfn),
-    i64 (*write_block)(void *self, u64 sector, vpn_t vpn, pfn_t pfn)
-) {
-    buffered_blk_dev->cache_size = 0;
-    buffered_blk_dev->buffer_head = NULL;
-    buffered_blk_dev->super = super;
-    buffered_blk_dev->read_block = read_block;
-    buffered_blk_dev->write_block = write_block;
-}
-
 BlockBuffer *get_block_buffer(BufferedBlockDevice *buffered_blk_dev, u64 block_id) {
     // find in cache
     BlockBuffer *ptr = buffered_blk_dev->buffer_head;
@@ -120,4 +109,12 @@ i64 read_bytes(BufferedBlockDevice *buffered_blk_dev, u64 offset, void *buffer, 
 i64 write_bytes(BufferedBlockDevice *buffered_blk_dev, u64 offset, const void *buffer, u64 size) {
     translate_bytes(buffered_blk_dev, offset, (void *)buffer, size, true);
     return 0;
+}
+void wrap_block_buffer_file(File *out, BufferedBlockDevice *in) {
+    out->super = in;
+    out->type = DEVICE;
+    out->permission = PERMISSION_R | PERMISSION_W;
+    out->size = in->size;
+    out->read = (i64 (*)(void *, u64, void *, u64)) read_bytes;
+    out->write = (i64 (*)(void *, u64, const void *, u64)) write_bytes;
 }

@@ -61,7 +61,7 @@ extern CPU cpus[NCPU];
 
 
 
-void load_process(PCB *process, void *app_start);
+i64 load_process(PCB *process, File *program);
 void unload_process(PCB *process);
 void free_process_space(PCB *process);
 void init_scheduler(void);

@@ -1,13 +1,11 @@
-#include "sbi.h"
 #include "printk.h"
-#include "trap.h"
 #include "pagetable.h"
-#include "timer.h"
 #include "process.h"
 #include "fdt.h"
 #include "drivers/virtio_blk.h"
 #include "block_device.h"
 #include "file.h"
+
 #include "filesystem.h"
 #include <string.h>
 
@@ -49,20 +47,13 @@ void init(u64 hart_id, struct fdt_header *dtb) {
     // wrap to virtio device
     init_virtio_blk(&virtio_blk_0, VIRTIO0);
     // wrap to buffered_block_device
-    init_buffered_block_device(&root_block_buffered_dev, &virtio_blk_0, 
-        (i64 (*)(void *, u64, vpn_t, pfn_t))virtio_blk_read_block,
-        (i64 (*)(void *, u64, vpn_t, pfn_t))virtio_blk_write_block);
+    wrap_virtio_blk_device(&root_block_buffered_dev, &virtio_blk_0);
     // wrap to file
-    root_block_device = (File) {
-        .super = &root_block_buffered_dev,
-        .permission = 06,
-        .size = virtio_blk_0.capacity * SECTOR_SIZE,
-        .read = (i64 (*)(void *, u64, void *, u64))read_bytes,
-        .write = (i64 (*)(void *, u64, const void *, u64))write_bytes
-    };
-
+    wrap_block_buffer_file(&root_block_device, &root_block_buffered_dev);
 
     init_filesystem(&rootfs, &root_block_device);
     ls(&rootfs.root);
+
+
     init_scheduler();
 }

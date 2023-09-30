@@ -102,3 +102,12 @@ i64 fs_file_write(FSFile *file, u64 offset, const void *buf, u64 size) {
     // since we do not change the file metadata, we do not have to sync.
     return 0;
 }
+
+void wrap_fsfile(File *out, FSFile *in) {
+    out->super = in;
+    out->permission = in->permission;
+    out->size = in->size;
+    out->type = in->type;
+    out->read = (i64 (*)(void *, u64, void *, u64)) fs_file_read;
+    out->write = (i64 (*)(void *, u64, const void *, u64)) fs_file_write;
+}

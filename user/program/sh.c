@@ -11,6 +11,10 @@ void _start() {
         }
         if (ch == '\r') {
             write(STDOUT, "\n", 2);
+            if (strlen(buffer) == 0) {
+                write(STDOUT, "sh> ", 6);
+                continue;
+            }
             if (strcmp(buffer, "exit") == 0) {
                 exit(0);
             }

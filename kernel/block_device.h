@@ -2,6 +2,7 @@
 #define _K_BLOCK_DEVICE_H
 #include <type.h>
 #include "mem.h"
+#include "file.h"
 
 #define SECTOR_SIZE 512
 #define CACHE_BLOCKS 64
@@ -18,17 +19,12 @@ typedef struct buf {
 typedef struct {
     BlockBuffer *buffer_head;
     int cache_size;
+    u64 size;
     BlockBuffer buffer_list[CACHE_BLOCKS];
     void *super;
     i64 (*read_block)(void *self, u64 sector, vpn_t vpn, pfn_t pfn);
     i64 (*write_block)(void *self, u64 sector, vpn_t vpn, pfn_t pfn);
 } BufferedBlockDevice;
-
-
-void init_buffered_block_device(BufferedBlockDevice *buffered_blk_dev, void *super,
-    i64 (*read_block)(void *self, u64 sector, vpn_t vpn, pfn_t pfn),
-    i64 (*write_block)(void *self, u64 sector, vpn_t vpn, pfn_t pfn)
-);
 
 BlockBuffer *get_block_buffer(BufferedBlockDevice *buffered_blk_dev, u64 block_id);
 
@@ -37,4 +33,6 @@ void write_buffered_block(BufferedBlockDevice *buffered_blk_dev, u64 block_id, c
 
 i64 read_bytes(BufferedBlockDevice *buffered_blk_dev, u64 offset, void *buffer, u64 size);
 i64 write_bytes(BufferedBlockDevice *buffered_blk_dev, u64 offset, const void *buffer, u64 size);
+
+void wrap_block_buffer_file(File *out, BufferedBlockDevice *in);
 #endif

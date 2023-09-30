@@ -35,4 +35,62 @@ void ls(FSFile *dir) {
         printk(entries[i].name);
         printk("\n");
     }
+    kfree(entries, dir->size);
+}
+
+i64 getfile(FSFile *cwd, const char *path, FSFile *fileout) {
+
+    const char *ptr = path;
+    if (*ptr == '/') {
+        cwd = &cwd->fs->root;
+        ptr++;
+    }
+    if (*ptr == '\0') {
+        printk("[kernel] getting null file\n");
+        return -1;
+    }
+    const char *end = ptr;
+    while (*end != '\0') {
+        if (cwd->type != DIRECTORY) {
+            printk("[kernel] not a directory");
+            return -1;
+        }
+        // get file / directory name
+        for (; *end != '\0' && *end != '/'; end++);
+
+        u64 name_size = end - ptr;
+        // find the inode of entry
+        DirEntry *entries = kalloc(cwd->size);
+        fs_file_read(cwd, 0, entries, cwd->size);
+        u64 dir_size = cwd->size;
+        bool found = false;
+        for (int i = 0; i < dir_size / sizeof(DirEntry); i++) {
+            if (strncmp(ptr, entries[i].name, name_size) == 0) {
+
+                fileout->fs = cwd->fs;
+                fileout->inum = entries[i].inode;
+
+                fs_file_init(fileout);
+
+                found = true;
+                break;
+
+            }
+        }
+        kfree(entries, dir_size);
+        if (!found) {
+            printk("[kernel] cannot find item named ");
+            printk(ptr);
+            printk(" in path ");
+            printk(path);
+            printk("\n");
+            return -1;
+        }
+        cwd = fileout;
+        if (*end == '/') {
+            end++;
+        }
+        ptr = end;
+    }
+    return 0;
 }
