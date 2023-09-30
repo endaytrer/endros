@@ -22,14 +22,16 @@ class Super(ctypes.Structure):
     _fields_ = [('magic', ctypes.c_uint32),
                 ('inode_bitmap_blocks', ctypes.c_uint32), # length (in blocks) of inode bitmap
                 ('data_bitmap_blocks', ctypes.c_uint32), # length (in blocks) of data bitmap
-                ('inode_table_blocks', ctypes.c_uint32) # length (in blocks) of inode_table
+                ('inode_table_blocks', ctypes.c_uint32), # length (in blocks) of inode_table
+                ('size_blocks', ctypes.c_uint32),
+                ('root_inode', ctypes.c_uint32) # inode number of root
     ]
 
 INODE_SIZE = 128
 
 class Inode(ctypes.Structure):
     _fields_ = [('type', ctypes.c_uint32),
-                ('privilege', ctypes.c_uint32),
+                ('permission', ctypes.c_uint32),
                 ('size_bytes', ctypes.c_uint64),
                 ('direct', ctypes.c_uint32 * DIRECT_PTRS),
                 ('single_ind', ctypes.c_uint32),
@@ -280,7 +282,7 @@ def allocate_file_blocks(inode: Inode, size_bytes: int, data: bytearray) -> None
         mm.seek(block * BLOCK_SIZE)
         mm.write(data[index * BLOCK_SIZE: (index + 1) * BLOCK_SIZE])
 
-def create_file(inode: int, type: int, privilege: int, size_bytes: int, data: bytearray) -> None:
+def create_file(inode: int, type: int, permission: int, size_bytes: int, data: bytearray) -> None:
 
     global mm
     global inode_bitmap_blocks
@@ -307,7 +309,7 @@ def create_file(inode: int, type: int, privilege: int, size_bytes: int, data: by
     mm.write_byte(original_byte | (1 << offset))
 
     # set inode info
-    inode_obj = Inode(type, privilege, size_bytes)
+    inode_obj = Inode(type, permission, size_bytes)
     allocate_file_blocks(inode_obj, size_bytes, data)
     mm.seek(inode_table_ptr + inode * INODE_SIZE)
     mm.write(inode_obj)
@@ -338,18 +340,18 @@ def create_dir_bfs(path: str, inode: int) -> None:
             # treat symbolic links as regular files
             stats = os.stat(path)
             type = VSFS_FILE
-            privilege = stats.st_mode
+            permission = stats.st_mode
             size = stats.st_size
             
             with open(path, 'rb') as f:
                 data = f.read(size)
             
-            create_file(inode, type, privilege, size, data)
+            create_file(inode, type, permission, size, data)
             continue
 
         stats = os.stat(path)
         type = VSFS_DIRECTORY
-        privilege = stats.st_mode
+        permission = stats.st_mode
         subdir = [(x, current_inode + i) for i, x in enumerate(os.listdir(path))]
 
         size = (2 + len(subdir)) * DIR_ENTRY_SIZE
@@ -361,7 +363,7 @@ def create_dir_bfs(path: str, inode: int) -> None:
             bfs_queue.append((path + '/' + name, new_inode, inode))
             data += DirEntry(name.encode(), new_inode)
 
-        create_file(inode, type, privilege, size, data)
+        create_file(inode, type, permission, size, data)
         current_inode += len(subdir)
 
 
@@ -402,11 +404,15 @@ def main() -> None:
     total_blocks = int(math.ceil(size / BLOCK_SIZE))
     total_inodes = int(args.inodes)
 
-    inode_bitmap_blocks = int(math.ceil(int(math.ceil(total_inodes / 8))) / BLOCK_SIZE)
-    data_bitmap_blocks = int(math.ceil(int(math.ceil(total_blocks / 8))) / BLOCK_SIZE)
-    inode_table_blocks = int(math.ceil((total_inodes * INODE_SIZE)) / BLOCK_SIZE)
-
-
+    inode_bitmap_blocks = int(math.ceil(int(math.ceil(total_inodes / 8)) / BLOCK_SIZE))
+    data_bitmap_blocks = int(math.ceil(int(math.ceil(total_blocks / 8)) / BLOCK_SIZE))
+    inode_table_blocks = int(math.ceil((total_inodes * INODE_SIZE) / BLOCK_SIZE))
+    
+    print("inode_bitmap_blocks = ", inode_bitmap_blocks)
+    print("data_bitmap_blocks = ", data_bitmap_blocks)
+    print("inode_table_blocks = ", inode_table_blocks)
+    print("total blocks = ", total_blocks)
+    
     inode_bitmap_ptr = BLOCK_SIZE
     inode_bitmap_size_bytes = int(math.ceil(total_inodes / 8))
 
@@ -419,7 +425,7 @@ def main() -> None:
     data_ptr = (1 + inode_bitmap_blocks + data_bitmap_blocks + inode_table_blocks) * BLOCK_SIZE
     data_size = size - data_ptr
 
-    super_block = Super(MAGIC, inode_bitmap_blocks, data_bitmap_blocks)
+    super_block = Super(MAGIC, inode_bitmap_blocks, data_bitmap_blocks, inode_table_blocks, total_blocks, 2)
 
     mm.seek(0)
     mm.write(super_block)

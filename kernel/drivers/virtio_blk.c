@@ -23,19 +23,19 @@ void init_virtio_blk(VirtIOBlk *blk, VirtIOHeader *header) {
 }
 
 
-i64 write_block(VirtIOBlk *blk, u64 block_id, vpn_t buf_vpn, pfn_t buf_pfn) {
+i64 virtio_blk_write_block(VirtIOBlk *blk, u64 sector, vpn_t buf_vpn, pfn_t buf_pfn) {
     vpn_t req_vpn;
     pfn_t req_pfn = uptalloc(&req_vpn);
-    VirtIOBlkReq *req = PAGE_2_ADDR(req_vpn);
+    VirtIOBlkReq *req = (VirtIOBlkReq *)PAGE_2_ADDR(req_vpn);
     *req = (VirtIOBlkReq) {
         .req_type = Out,
         .reserved = 0,
-        .sector = block_id
+        .sector = sector
     };
 
     vpn_t resp_vpn;
     pfn_t resp_pfn = uptalloc(&resp_vpn);
-    VirtIOBlkResp *resp = PAGE_2_ADDR(resp_vpn);
+    VirtIOBlkResp *resp = (VirtIOBlkResp *)PAGE_2_ADDR(resp_vpn);
     resp->status = VIRTIO_BLK_RESP_STATUS_NOT_READY;
     pfn_t inputs[] = {req_pfn, buf_pfn};
     u32 input_lengths[] = {sizeof(VirtIOBlkReq), PAGESIZE};
@@ -48,19 +48,19 @@ i64 write_block(VirtIOBlk *blk, u64 block_id, vpn_t buf_vpn, pfn_t buf_pfn) {
     uptfree(resp_pfn, resp_vpn);
     return status;
 }
-i64 read_block(VirtIOBlk *blk, u64 block_id, vpn_t buf_vpn, pfn_t buf_pfn) {
+i64 virtio_blk_read_block(VirtIOBlk *blk, u64 sector, vpn_t buf_vpn, pfn_t buf_pfn) {
     vpn_t req_vpn;
     pfn_t req_pfn = uptalloc(&req_vpn);
-    VirtIOBlkReq *req = PAGE_2_ADDR(req_vpn);
+    VirtIOBlkReq *req = (VirtIOBlkReq *)PAGE_2_ADDR(req_vpn);
     *req = (VirtIOBlkReq) {
         .req_type = In,
         .reserved = 0,
-        .sector = block_id
+        .sector = sector
     };
 
     vpn_t resp_vpn;
     pfn_t resp_pfn = uptalloc(&resp_vpn);
-    VirtIOBlkResp *resp = PAGE_2_ADDR(resp_vpn);
+    VirtIOBlkResp *resp = (VirtIOBlkResp *)PAGE_2_ADDR(resp_vpn);
     resp->status = VIRTIO_BLK_RESP_STATUS_NOT_READY;
     pfn_t inputs[] = {req_pfn};
     u32 input_lengths[] = {sizeof(VirtIOBlkReq)};

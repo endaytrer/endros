@@ -25,7 +25,7 @@ i64 sys_exec(const char *path) {
     vpn_t kernel_vpn = walkupt(proc->ptref_base, user_vpn);
     bool within_page = false;
     while (!within_page) {
-        for (char *ptr = (char *)(u64)ADDR(kernel_vpn, offset); ptr != PAGE_2_ADDR(kernel_vpn + 1);) {
+        for (char *ptr = (char *)ADDR(kernel_vpn, offset); ptr != (char *)PAGE_2_ADDR(kernel_vpn + 1);) {
             *dist_ptr = *ptr;
             if (*ptr == '\0') {
                 within_page = true;

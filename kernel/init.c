@@ -6,6 +6,9 @@
 #include "process.h"
 #include "fdt.h"
 #include "drivers/virtio_blk.h"
+#include "block_device.h"
+#include "file.h"
+#include "filesystem.h"
 #include <string.h>
 
 extern void sbss();
@@ -32,6 +35,9 @@ void parse_dtb(struct fdt_header *dtb) {
     printk("\n");
 }
 
+static VirtIOBlk virtio_blk_0;
+static BufferedBlockDevice root_block_buffered_dev;
+static File root_block_device;
 void init(u64 hart_id, struct fdt_header *dtb) {
     asm volatile(
         "csrw stvec, %0"
@@ -40,16 +46,23 @@ void init(u64 hart_id, struct fdt_header *dtb) {
     // virtio device
     clear_bss();
     init_pagetable();
-    VirtIOBlk *blk = kalloc(sizeof(VirtIOBlk));
-    init_virtio_blk(blk, VIRTIO0);
-    vpn_t super_block_vpn;
-    pfn_t super_block_pfn = uptalloc(&super_block_vpn);
-    read_block(blk, 0, super_block_vpn, super_block_pfn);
-    read_block(blk, 8, super_block_vpn, super_block_pfn);
-    read_block(blk, 16, super_block_vpn, super_block_pfn);
-    read_block(blk, 24, super_block_vpn, super_block_pfn);
-    read_block(blk, 32, super_block_vpn, super_block_pfn);
-    read_block(blk, 40, super_block_vpn, super_block_pfn);
-    read_block(blk, 48, super_block_vpn, super_block_pfn);
+    // wrap to virtio device
+    init_virtio_blk(&virtio_blk_0, VIRTIO0);
+    // wrap to buffered_block_device
+    init_buffered_block_device(&root_block_buffered_dev, &virtio_blk_0, 
+        (i64 (*)(void *, u64, vpn_t, pfn_t))virtio_blk_read_block,
+        (i64 (*)(void *, u64, vpn_t, pfn_t))virtio_blk_write_block);
+    // wrap to file
+    root_block_device = (File) {
+        .super = &root_block_buffered_dev,
+        .permission = 06,
+        .size = virtio_blk_0.capacity * SECTOR_SIZE,
+        .read = (i64 (*)(void *, u64, void *, u64))read_bytes,
+        .write = (i64 (*)(void *, u64, const void *, u64))write_bytes
+    };
+
+
+    init_filesystem(&rootfs, &root_block_device);
+    ls(&rootfs.root);
     init_scheduler();
 }

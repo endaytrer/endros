@@ -78,12 +78,12 @@ pfn_t palloc_ptr(vpn_t vpn, u64 flags) {
         ptunmap(ADDR_2_PAGE(pfreelist));
         pfreelist = next;
         ptmap(vpn, pfn, flags);
-        memset(PAGE_2_ADDR(vpn), 0, PAGESIZE);
+        memset((void *)PAGE_2_ADDR(vpn), 0, PAGESIZE);
         return pfn;
     }
     pfn_t pfn = pfn_start++;
     ptmap(vpn, pfn, flags);
-    memset(PAGE_2_ADDR(vpn), 0, PAGESIZE);
+    memset((void *)PAGE_2_ADDR(vpn), 0, PAGESIZE);
     return pfn;
 }
 
@@ -174,7 +174,7 @@ void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t us
         PTReference_1 *next_ptref = kalloc(2 * PAGESIZE);
 
         *pte = PTE(temp_pfn, PTE_VALID);
-        ptref2->ptable = PAGE_2_ADDR(temp_vpn);
+        ptref2->ptable = (pte_t *)PAGE_2_ADDR(temp_vpn);
         ptref2->pt_ref = next_ptref;
     }
 
@@ -187,7 +187,7 @@ void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t us
         vpn_t *next_ptref = kalloc(PAGESIZE);
 
         *pte = PTE(temp_pfn, PTE_VALID);
-        ptref1->ptable = PAGE_2_ADDR(temp_vpn);
+        ptref1->ptable = (pte_t *)PAGE_2_ADDR(temp_vpn);
         ptref1->pt_ref = next_ptref;
     }
 
@@ -270,7 +270,7 @@ void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_p
         vpn_t kernel_vpn_2;
         pfn_t pfn_2 = uptalloc(&kernel_vpn_2);
         dst_ptref2->pt_ref = kalloc(PAGESIZE * 2);
-        dst_ptref2->ptable = PAGE_2_ADDR(kernel_vpn_2);
+        dst_ptref2->ptable = (pte_t *)PAGE_2_ADDR(kernel_vpn_2);
         *dst_pte2 = PTE(pfn_2, PTE_VALID);
 
         for (u64 j = 0; j < PAGESIZE / sizeof(pte_t); j++) {
@@ -284,7 +284,7 @@ void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_p
             vpn_t kernel_vpn_1;
             pfn_t pfn_1 = uptalloc(&kernel_vpn_1);
             dst_ptref1->pt_ref = kalloc(PAGESIZE);
-            dst_ptref1->ptable = PAGE_2_ADDR(kernel_vpn_1);
+            dst_ptref1->ptable = (pte_t *)PAGE_2_ADDR(kernel_vpn_1);
             *dst_pte1 = PTE(pfn_1, PTE_VALID);
             
             for (u64 k = 0; k < PAGESIZE / sizeof(pte_t); k++) {
@@ -302,7 +302,7 @@ void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_p
                 *dst_ptref0 = kernel_vpn;
 
                 // copying from src space to dst space;
-                memcpy(PAGE_2_ADDR(*dst_ptref0), PAGE_2_ADDR(*src_ptref0), PAGESIZE);
+                memcpy((void *)PAGE_2_ADDR(*dst_ptref0), (void *)PAGE_2_ADDR(*src_ptref0), PAGESIZE);
             }
         }
     }
@@ -320,7 +320,7 @@ void ptmap(vpn_t vpn, pfn_t pfn, u64 flags) {
 
         // after palloc, we have to clean allocated page.
         // accessing the page is 000 000 VPN(2) offset
-        memset(PAGE_2_ADDR(VPN(2, vpn)), 0, PAGESIZE);
+        memset((void *)PAGE_2_ADDR(VPN(2, vpn)), 0, PAGESIZE);
         // accessing
     } else {
         SET_FLAGS(pte, PTE_VALID | PTE_READ | PTE_WRITE);
@@ -336,7 +336,7 @@ void ptmap(vpn_t vpn, pfn_t pfn, u64 flags) {
         // after palloc, we have to clean allocated page.
         // accessing the page is 000 VPN(2) VPN(1) offset
         SET_FLAGS(pte, PTE_VALID);
-        memset(PAGE_2_ADDR((VPN(2, vpn) << 9) | VPN(1, vpn)), 0, PAGESIZE);
+        memset((void *)PAGE_2_ADDR((VPN(2, vpn) << 9) | VPN(1, vpn)), 0, PAGESIZE);
     } else {
         SET_FLAGS(new_pte, PTE_VALID | PTE_READ | PTE_WRITE);
         SET_FLAGS(pte, PTE_VALID);
@@ -388,7 +388,7 @@ void ptmap_physical(vpn_t vpn, pfn_t pfn, u64 flags) {
         pte = (pte_t *)ADDR(temp_pfn, VPN(level, vpn) << 3);
         if (!(*pte & PTE_VALID)) {
             temp_pfn = palloc();
-            memset(PAGE_2_ADDR(temp_pfn), 0, PAGESIZE);
+            memset((void *)PAGE_2_ADDR(temp_pfn), 0, PAGESIZE);
             *pte = PTE(temp_pfn, PTE_VALID);
         } else {
             temp_pfn = GET_PFN(pte);
@@ -414,7 +414,7 @@ void init_pagetable(void) {
     // map recursive page table
     pfn_start = ADDR_2_PAGE(ekernel);
     pt_base = palloc();
-    memset(PAGE_2_ADDR(pt_base), 0, PAGESIZE);
+    memset((void *)PAGE_2_ADDR(pt_base), 0, PAGESIZE);
 
     // making the 0th entry pointing to itself (recursive mapping), and 1st entry pointing to it self with rw permission
     // in this way, first page = 0x000 000 000 xxx, does not have r/w permission

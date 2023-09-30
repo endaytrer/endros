@@ -5,8 +5,10 @@
 #include "trap.h"
 #include "machine.h"
 #include "syscall.h"
+#include "file.h"
 
 #define NUM_PROCS 256
+#define NUM_FILES 64
 #define USER_STACK_SIZE 0x100000
 #define KERNEL_STACK_SIZE 0x100000
 #define APP_SIZE_LIMIT 0x20000
@@ -44,6 +46,10 @@ typedef struct pcb_t {
     // kernel stack, pointing to guard page.
     pfn_t kernel_stack_pfn;
     vpn_t kernel_stack_vpn;
+
+    // filesystem: CWD, opened files
+    u32 cwd_inode;
+    FileDescriptor opened_files[NUM_FILES];
 } PCB;
 
 

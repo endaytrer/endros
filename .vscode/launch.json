@@ -11,8 +11,8 @@
             "program": "${workspaceFolder}/coreos",
             "cwd": "${workspaceFolder}",
             "MIMode": "gdb",
-            "miDebuggerPath": "gdb-multiarch",
-            "miDebuggerArgs": "-ex 'target remote localhost:1234'",
+            "miDebuggerPath": "riscv64-elf-gdb",
+            "args": ["-ex", "'target remote localhost:1234'"],
             "setupCommands": [
                 {
                     "description": "Enable pretty-printing for gdb",

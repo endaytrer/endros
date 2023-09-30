@@ -121,7 +121,7 @@ $(KERNEL_ELF): $(KERNEL_OBJS) $(KERNEL_LINKER_SCRIPT)
 $(KERNEL)/%.o: $(KERNEL)/%.c $(KERNEL_C_HDRS)
 	$(CC) -fPIC $(CFLAGS) -c -o $@ $<
 
-$(KERNEL)/%.o: $(KERNEL)/%.S $(KERNEL_C_HDRS)
+$(KERNEL)/%.o: $(KERNEL)/%.S $(KERNEL_C_HDRS) $(FSIMG)
 	$(AS) $(ASFLAGS) -c -o $@ $<
 
 $(KERNEL)/%.o: $(UTIL)/%.c $(UTIL_C_HDRS)

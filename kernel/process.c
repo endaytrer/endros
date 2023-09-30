@@ -4,6 +4,9 @@
 #include "printk.h"
 #include "sbi.h"
 #include "timer.h"
+#include "filesystem.h"
+#include "stdio.h"
+#include "fcntl.h"
 
 PCB process_control_table[NUM_PROCS];
 CPU cpus[NCPU];
@@ -43,17 +46,14 @@ void load_process(PCB *process, void *app_start) {
         for (vpn_t vpn = ADDR_2_PAGE(start_va); vpn < ADDR_2_PAGEUP(end_va); ++vpn) {
             vpn_t kernel_vpn;
             pfn_t pfn = uptalloc(&kernel_vpn);
-            u64 offset = (u64)PAGE_2_ADDR(vpn) - start_va;
-            memcpy(PAGE_2_ADDR(kernel_vpn), (void *)((u64)program_start + offset), PAGESIZE);
+            u64 offset = PAGE_2_ADDR(vpn) - start_va;
+            memcpy((void *)PAGE_2_ADDR(kernel_vpn), (void *)((u64)program_start + offset), PAGESIZE);
             uptmap(ptbase_vpn, ptref_base, kernel_vpn, vpn, pfn, flags);
         }
     }
 
     // map user stack;
     // guard page
-
-
-
     max_vpn += 1;
     vpn_t heap_bottom = max_vpn + USER_STACK_SIZE / PAGESIZE;
     for (vpn_t vpn = max_vpn; vpn < heap_bottom; vpn++) {
@@ -61,14 +61,14 @@ void load_process(PCB *process, void *app_start) {
         pfn_t pfn = uptalloc(&kernel_vpn);
         uptmap(ptbase_vpn, ptref_base, kernel_vpn, vpn, pfn, PTE_USER | PTE_VALID | PTE_READ | PTE_WRITE);
     }
-    process->brk = PAGE_2_ADDR(heap_bottom);
-    process->heap_bottom = PAGE_2_ADDR(heap_bottom);
+    process->brk = (void *)PAGE_2_ADDR(heap_bottom);
+    process->heap_bottom = (void *)PAGE_2_ADDR(heap_bottom);
 
     // trap context
     vpn_t trap_vpn;
     pfn_t pfn = uptalloc(&trap_vpn);
     uptmap(ptbase_vpn, ptref_base, trap_vpn, ADDR_2_PAGE(TRAPFRAME), pfn, PTE_VALID | PTE_READ | PTE_WRITE);
-    process->trapframe = PAGE_2_ADDR(trap_vpn);
+    process->trapframe = (TrapContext *)PAGE_2_ADDR(trap_vpn);
 
     // kernel stack with guard page
     u8 *kernel_sp = kalloc(KERNEL_STACK_SIZE + PAGESIZE);
@@ -81,14 +81,33 @@ void load_process(PCB *process, void *app_start) {
 
     kernel_sp += KERNEL_STACK_SIZE + PAGESIZE;
 
-    app_init_context(PAGE_2_ADDR(trap_vpn), elf_header->e_entry, (u64)PAGE_2_ADDR(max_vpn) + USER_STACK_SIZE, (u64)kernel_sp);
+    app_init_context((TrapContext *)PAGE_2_ADDR(trap_vpn), elf_header->e_entry, PAGE_2_ADDR(max_vpn) + USER_STACK_SIZE, (u64)kernel_sp);
+
+    // set opened files to be [STDIN, STDOUT, STDERR]
+    process->cwd_inode = rootfs.super.root_inode;
+    memset(process->opened_files, 0, sizeof(process->opened_files));
+    process->opened_files[STDIN] = (FileDescriptor) {
+        .file = &stdin,
+        .open_flags = O_RDONLY,
+        .seek = 0
+    };
+    process->opened_files[STDOUT] = (FileDescriptor) {
+        .file = &stdout,
+        .open_flags = O_WRONLY,
+        .seek = 0
+    };
+    process->opened_files[STDERR] = (FileDescriptor) {
+        .file = &stderr,
+        .open_flags = O_WRONLY,
+        .seek = 0
+    };
 }
 void free_process_space(PCB *process) {
     ptref_free(process->ptbase_pfn, process->ptbase_vpn, process->ptref_base);
     
     ptmap(process->kernel_stack_vpn, process->kernel_stack_pfn, PTE_VALID | PTE_READ | PTE_WRITE);
     // remap guard page
-    kfree(PAGE_2_ADDR(process->kernel_stack_vpn), KERNEL_STACK_SIZE + PAGESIZE);
+    kfree((void *)PAGE_2_ADDR(process->kernel_stack_vpn), KERNEL_STACK_SIZE + PAGESIZE);
 }
 void unload_process(PCB *process) {
     if (process->status != TERMINATED) {

@@ -113,7 +113,7 @@ i64 sys_fork(void) {
     new_proc->brk = proc->brk;
     new_proc->heap_bottom = proc->heap_bottom;
 
-    new_proc->trapframe = PAGE_2_ADDR(walkupt(ptref_base, ADDR_2_PAGE(TRAPFRAME)));
+    new_proc->trapframe = (TrapContext *)PAGE_2_ADDR(walkupt(ptref_base, ADDR_2_PAGE(TRAPFRAME)));
 
     // allocate kernel stack with guard page
     u8 *kernel_sp = kalloc(KERNEL_STACK_SIZE + PAGESIZE);
@@ -131,6 +131,12 @@ i64 sys_fork(void) {
 
     // set return code of new process to be 0
     new_proc->trapframe->x[10] = 0;
+
+
+    // copy fdt
+    new_proc->cwd_inode = proc->cwd_inode;
+    memcpy(new_proc->opened_files, proc->opened_files, sizeof(new_proc->opened_files));
+
     return next_pid++;
 }
 

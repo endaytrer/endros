@@ -17,7 +17,6 @@
 #define GET_PFN(pte_p) (*(pte_p) >> 10)
 #define SET_FLAGS(pte_p, flags) *pte_p = ((*pte_p & ~(0x3ff)) | flags)
 #define GET_FLAGS(pte_p) (*(pte_p) & 0x3ff)
-#define OFFSET(addr) ((u64)(addr) & 0xfff)
 
 typedef u64 pte_t;
 typedef struct free_node_t {

@@ -1,15 +1,6 @@
 {
     "files.associations": {
-        "*.m": "matlab",
-        "pagetable.h": "c",
-        "trap.h": "c",
-        "string.h": "c",
-        "virtio_disk.h": "c",
-        "fdt.h": "c",
-        "stdint.h": "c",
-        "block_device.h": "c",
-        "printk.h": "c",
-        "mem.h": "c"
+        "*.h": "c",
     },
     "C_Cpp.default.includePath": [
         "${workspaceFolder}/utils"

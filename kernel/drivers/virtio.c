@@ -177,7 +177,7 @@ i32 add_queue(VirtIOQueue *queue, pfn_t inputs[], u32 input_lengths[], u8 num_in
         }
         vpn_t indirect_vpn;
         pfn_t indirect_pfn = uptalloc(&indirect_vpn);
-        VirtQueueDesc *indirect_list = PAGE_2_ADDR(indirect_vpn);
+        VirtQueueDesc *indirect_list = (VirtQueueDesc *)PAGE_2_ADDR(indirect_vpn);
         for (u16 i = 0; i < num_inputs; i++) {
             indirect_list[i].addr = (u64)PAGE_2_ADDR(inputs[i]);
             indirect_list[i].len = input_lengths[i];
