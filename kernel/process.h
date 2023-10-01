@@ -6,6 +6,7 @@
 #include "machine.h"
 #include "syscall.h"
 #include "file.h"
+#include "fs_file.h"
 
 #define NUM_PROCS 256
 #define NUM_FILES 64
@@ -48,7 +49,7 @@ typedef struct pcb_t {
     vpn_t kernel_stack_vpn;
 
     // filesystem: CWD, opened files
-    u32 cwd_inode;
+    FSFile cwd_file;
     FileDescriptor opened_files[NUM_FILES];
 } PCB;
 

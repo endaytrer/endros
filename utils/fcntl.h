@@ -4,7 +4,6 @@
 #define STDIN 0
 #define STDOUT 1
 #define STDERR 2
-
 #define O_ACCMODE(flags) ((flags) & 3)
 
 #define O_RDONLY    00000000
@@ -25,4 +24,8 @@
 #define O_CLOEXEC   02000000
 #define O_SYNC      04000000
 #define O_PATH     010000000
+
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
 #endif

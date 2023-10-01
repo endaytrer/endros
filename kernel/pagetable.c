@@ -140,25 +140,25 @@ void kfree(void *ptr, u64 size) {
     free_head->next = freelist;
     freelist = free_head;
 }
-vpn_t walkupt(PTReference_2 *ptref_base, vpn_t user_vpn) {
+vpn_t walkupt(const PTReference_2 *ptref_base, vpn_t user_vpn) {
     /* walk in user page table
         return the page referenced by kernel vpn
      */
-    PTReference_2 *ptref2 = ptref_base + VPN(2, user_vpn);
+    const PTReference_2 *ptref2 = ptref_base + VPN(2, user_vpn);
 
     if (!ptref2->ptable) {
         // lookup failed
         return 0;
     }
 
-    PTReference_1 *ptref1 = ptref2->pt_ref + VPN(1, user_vpn);
+    const PTReference_1 *ptref1 = ptref2->pt_ref + VPN(1, user_vpn);
 
     if (!ptref1->ptable) {
         // lookup failed
         return 0;
     }
 
-    vpn_t *ptref0 = ptref1->pt_ref + VPN(0, user_vpn);
+    const vpn_t *ptref0 = ptref1->pt_ref + VPN(0, user_vpn);
     return *ptref0;
 
 }

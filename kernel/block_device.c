@@ -2,6 +2,7 @@
 #include "file.h"
 #include "block_device.h"
 #include "pagetable.h"
+#include "printk.h"
 
 BlockBuffer *get_block_buffer(BufferedBlockDevice *buffered_blk_dev, u64 block_id) {
     // find in cache
@@ -85,14 +86,18 @@ void translate_bytes(BufferedBlockDevice *buffered_blk_dev, u64 offset, void *bu
         if (write) {
 
             if (!ptr->valid && (page_offset != 0 || temp_page != PAGESIZE)) {
-                buffered_blk_dev->read_block(buffered_blk_dev->super, block_id * (PAGESIZE / SECTOR_SIZE), ptr->vpn, ptr->pfn);
-                ptr->valid = true;
+                if (buffered_blk_dev->read_block(buffered_blk_dev->super, block_id * (PAGESIZE / SECTOR_SIZE), ptr->vpn, ptr->pfn) != 0)
+                    printk("[kernel] read block failed\n");
+                else
+                    ptr->valid = true;
             }
             memcpy((void *)ADDR(ptr->vpn, page_offset), buffer, temp_page - page_offset);
         } else {
             if (!ptr->valid) {
-                buffered_blk_dev->read_block(buffered_blk_dev->super, block_id * (PAGESIZE / SECTOR_SIZE), ptr->vpn, ptr->pfn);
-                ptr->valid = true;
+                if (buffered_blk_dev->read_block(buffered_blk_dev->super, block_id * (PAGESIZE / SECTOR_SIZE), ptr->vpn, ptr->pfn) != 0)
+                    printk("[kernel] read block failed\n");
+                else
+                    ptr->valid = true;
             }
             memcpy(buffer, (void *)ADDR(ptr->vpn, page_offset), temp_page - page_offset);
         }

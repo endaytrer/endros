@@ -8,7 +8,6 @@ i64 wrapped_read(File *file, u64 offset, void *buf, u64 size) {
         return -1;
     }
     if (offset + size > file->size) {
-        printk("[kernel] read to large\n");
         return -1;
     }
     return file->read(file->super, offset, buf, size);

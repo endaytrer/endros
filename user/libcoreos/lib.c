@@ -23,13 +23,32 @@ void *sbrk(i64 size) {
     return (void *)sys_sbrk(size);
 }
 
-
 pid_t fork(void) {
     return sys_fork();
 }
+
 i64 exec(const char *path) {
     return sys_exec(path);
 }
+
 i64 waitpid(pid_t pid) {
     return sys_waitpid(pid);
+}
+
+i64 open(const char *path, int flags, int mode) {
+    return sys_openat(0, path, flags, mode);
+}
+
+i64 close(int fd) {
+    return sys_close(fd);
+}
+
+i64 lseek(int fd, i64 offset, u32 whence) {
+    u64 res;
+    int ret = sys_lseek(fd, 0, offset, &res, whence);
+    if (ret < 0) return ret;
+    return res;
+}
+i64 chdir(const char *path) {
+    return sys_chdir(path);
 }

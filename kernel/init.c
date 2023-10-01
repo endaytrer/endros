@@ -5,6 +5,7 @@
 #include "drivers/virtio_blk.h"
 #include "block_device.h"
 #include "file.h"
+#include "fs_file.h"
 
 #include "filesystem.h"
 #include <string.h>
@@ -27,7 +28,7 @@ void parse_dtb(struct fdt_header *dtb) {
     printk("\n");
     fdt32_t *fdt_structs = (fdt32_t *)((u64)dtb + ntohl(dtb->off_dt_struct));
     for (u32 i = 0; i < ntohl(dtb->size_dt_struct) / sizeof(fdt32_t); i++) {
-        printk(itoa(ntohl(fdt_structs[i]), buf));
+        printk(itoa(ntohl(fdt_structs[i]), buf, 10));
         printk(" ");
     }
     printk("\n");
@@ -52,8 +53,5 @@ void init(u64 hart_id, struct fdt_header *dtb) {
     wrap_block_buffer_file(&root_block_device, &root_block_buffered_dev);
 
     init_filesystem(&rootfs, &root_block_device);
-    ls(&rootfs.root);
-
-
     init_scheduler();
 }

@@ -210,8 +210,8 @@ typedef struct {
     VirtQueueUsed *used;
 
     VirtQueueDesc desc_shadow[VIRTIO_NUM_DESC];
-    u16 avail_idx;
-    u16 last_used_idx;
+    u32 avail_idx;
+    u32 last_used_idx;
     bool event_idx;
     bool indirect;
     VirtQueueDesc *indirect_lists[VIRTIO_NUM_DESC];

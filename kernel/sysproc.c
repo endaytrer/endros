@@ -53,9 +53,9 @@ i64 sys_exit(i32 xstate) {
 
     char buf[16];
     printk("[kernel] Process ");
-    printk(itoa(proc->pid, buf));
+    printk(itoa(proc->pid, buf, 10));
     printk(" exited with code ");
-    printk(itoa(xstate, buf));
+    printk(itoa(xstate, buf, 10));
     printk("\n");
 
     // if it is waited by parent, reschedule parent and set to terminated
@@ -134,7 +134,7 @@ i64 sys_fork(void) {
 
 
     // copy fdt
-    new_proc->cwd_inode = proc->cwd_inode;
+    new_proc->cwd_file = proc->cwd_file;
     memcpy(new_proc->opened_files, proc->opened_files, sizeof(new_proc->opened_files));
 
     return next_pid++;

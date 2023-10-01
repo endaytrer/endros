@@ -1,8 +1,12 @@
 #ifndef _K_SYSCALL_H
 #define _K_SYSCALL_H
 #include <type.h>
+#include "pagetable.h"
 
-
+#define SYS_CHDIR    49
+#define SYS_OPENAT   56
+#define SYS_CLOSE    57
+#define SYS_LSEEK    62
 #define SYS_READ     63
 #define SYS_WRITE    64
 #define SYS_EXIT     93
@@ -19,15 +23,24 @@ typedef struct {
     u64 usec;
 } TimeVal;
 
-i64 sys_write(u64 fd, const char *buf, u64 size);
-i64 sys_read(u64 fd, char *buf, u64 size);
+// for translating path argument. Read only
+void translate_2_pages(const PTReference_2 *ptref_base, void *kernel_buf, const void *user_buf);
+
+i64 sys_chdir(const char *filename);
+i64 sys_openat(i32 dfd, const char *filename, int flags, int mode);
+i64 sys_close(u32 fd);
+i64 sys_lseek(u32 fd, i64 off_high, i64 off_low, u64 *result, u32 whence);
+i64 sys_write(u32 fd, const char *buf, u64 size);
+i64 sys_read(u32 fd, char *buf, u64 size);
 i64 sys_exit(i32 xstate);
 i64 sys_yield(void);
 i64 sys_get_time(TimeVal *ts, u64 _tz);
 i64 sys_sbrk(i64 size);
-i64 syscall(u64 id, u64 arg0, u64 arg1, u64 arg2);
 i64 sys_fork(void);
 i64 sys_exec(const char *path);
 i64 sys_waitpid(pid_t pid);
+
+
+i64 syscall(u64 id, u64 arg0, u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5, u64 arg6);
 
 #endif

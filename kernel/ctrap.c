@@ -50,14 +50,21 @@ void trap_handler(void) {
                 break;
             default:
                 printk("[kernel] Unsupported interrupt: ");
-                printk(itoa(scause, buf));
+                printk(itoa(scause, buf, 10));
                 panic("\n");
         }
     } else {
         switch (trap_code) {
             case TRAP_Exception_UserEnvCall:
                 proc->trapframe->sepc += 4;
-                u64 ret = syscall(proc->trapframe->x[17], proc->trapframe->x[10], proc->trapframe->x[11], proc->trapframe->x[12]);
+                u64 ret = syscall(proc->trapframe->x[17],
+                                  proc->trapframe->x[10],
+                                  proc->trapframe->x[11],
+                                  proc->trapframe->x[12],
+                                  proc->trapframe->x[13],
+                                  proc->trapframe->x[14],
+                                  proc->trapframe->x[15],
+                                  proc->trapframe->x[16]);
                 proc->trapframe->x[10] = ret;
                 break;
             case TRAP_Exception_LoadPageFault:
@@ -74,14 +81,14 @@ void trap_handler(void) {
                 break;
             case TRAP_Exception_IllegalInstruction:
                 printk("[kernel] Illegal instruction: ");
-                printk(itoa(stval, buf));
+                printk(itoa(stval, buf, 16));
                 printk("\n");
                 
                 sys_exit(-4);
                 break;
             default:
                 printk("[kernel] Unsupported exception: ");
-                printk(itoa(scause, buf));
+                printk(itoa(scause, buf, 16));
                 printk("\n");
                 
                 sys_exit(-5);

@@ -21,5 +21,8 @@ void *sbrk(i64 size);
 pid_t fork(void);
 i64 exec(const char *path);
 i64 waitpid(pid_t pid);
-
+i64 open(const char *path, int flags, int mode);
+i64 close(int fd);
+i64 lseek(int fd, i64 offset, u32 whence);
+i64 chdir(const char *path);
 #endif

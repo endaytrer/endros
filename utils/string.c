@@ -1,4 +1,3 @@
-#define COUNTING_SYSTEM 16
 #define DIGIT_TO_CHAR(i) ((i >= 10) ? ('a' + (i - 10)) : '0' + i)
 #include "string.h"
 
@@ -32,6 +31,26 @@ u64 strlen(const char *s) {
     return ans;
 }
 
+char *strsep(char **stringp, const char *delim) {
+    ///TODO: brute force approach, maybe replace it with KMP
+    u64 len = strlen(delim);
+    for (char *ptr = *stringp; *(ptr + len) != '\0'; ++ptr) {
+        if (strncmp(ptr, delim, len) != 0) {
+            continue;
+        }
+        for (int i = 0; i < len; i++) {
+            *(ptr + i) = '\0';
+        }
+        char *temp = *stringp;
+        *stringp = ptr + len;
+        return temp;
+    }
+    // if no token is seperated, set to null;
+    char *temp = *stringp;
+    *stringp = (char *)0;
+    return temp;
+}
+
 void memset(void *start, u8 byte, u64 size) {
     for (u8 *ptr = (u8 *)start; ptr < (u8 *)start + size; ++ptr) {
         *ptr = byte;
@@ -43,20 +62,19 @@ void memcpy(void *dst, const void *src, u64 size) {
         *((u8 *)dst + i) = *((u8 *)src + i);
     }
 }
-
-char *itoa(i64 num, char *buffer) {
+char *itoa(i64 num, char *buffer, int counting_system) {
     char *ptr = buffer;
     if (num < 0) {
         *(ptr++) = '-';
         num = -num;
     }
-    if (COUNTING_SYSTEM == 16) {
+    if (counting_system == 16) {
         *(ptr++) = '0';
         *(ptr++) = 'x';
-    } else if (COUNTING_SYSTEM == 8) {
+    } else if (counting_system == 8) {
         *(ptr++) = '0';
         *(ptr++) = 'o';
-    } else if (COUNTING_SYSTEM == 2) {
+    } else if (counting_system == 2) {
         *(ptr++) = '0';
         *(ptr++) = 'b';
     }
@@ -65,13 +83,13 @@ char *itoa(i64 num, char *buffer) {
     }
     i64 p = 1;
     while (p <= num) {
-        p *= COUNTING_SYSTEM;
+        p *= counting_system;
     }
-    p /= COUNTING_SYSTEM;
+    p /= counting_system;
     while (p != 0) {
         int k = num / p;
         num %= p;
-        p /= COUNTING_SYSTEM;
+        p /= counting_system;
         (*ptr++) = DIGIT_TO_CHAR(k);
     }
     *ptr = '\0';

@@ -40,7 +40,7 @@ typedef struct {
 } PTReference_2;
 
 // user page stuff
-vpn_t walkupt(PTReference_2 *ptref_base, vpn_t user_vpn);
+vpn_t walkupt(const PTReference_2 *ptref_base, vpn_t user_vpn);
 pfn_t uptalloc(vpn_t *out_vpn);
 void uptfree(pfn_t pfn, vpn_t vpn);
 void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t user_vpn, pfn_t pfn, u64 flags);

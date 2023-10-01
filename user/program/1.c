@@ -7,7 +7,7 @@ void _start(void) {
     i64 *s = sbrk(sizeof(i64));
     *s = 16;
     char buf[16];
-    write(STDOUT, itoa(*s, buf), 16);
+    write(STDOUT, itoa(*s, buf, 10), 16);
     write(STDOUT, "\n", 2);
     int pid = fork();
     if (pid < 0) {

@@ -21,23 +21,6 @@ void init_filesystem(Filesystem *fs, File *dev) {
     fs_file_init(&fs->root);
 }
 
-void ls(FSFile *dir) {
-    if (dir->type != DIRECTORY) {
-        printk("[kernel] not a directory");
-    }
-    DirEntry *entries = kalloc(dir->size);
-    fs_file_read(dir, 0, entries, dir->size);
-    for (int i = 0; i < dir->size / sizeof(DirEntry); i++) {
-        char buf[16];
-        printk(itoa(entries[i].inode, buf));
-
-        printk("\t");
-        printk(entries[i].name);
-        printk("\n");
-    }
-    kfree(entries, dir->size);
-}
-
 i64 getfile(FSFile *cwd, const char *path, FSFile *fileout) {
 
     const char *ptr = path;
@@ -65,7 +48,7 @@ i64 getfile(FSFile *cwd, const char *path, FSFile *fileout) {
         u64 dir_size = cwd->size;
         bool found = false;
         for (int i = 0; i < dir_size / sizeof(DirEntry); i++) {
-            if (strncmp(ptr, entries[i].name, name_size) == 0) {
+            if (strlen(entries[i].name) == name_size && strncmp(ptr, entries[i].name, name_size) == 0) {
 
                 fileout->fs = cwd->fs;
                 fileout->inum = entries[i].inode;

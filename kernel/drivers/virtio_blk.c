@@ -13,7 +13,7 @@ void init_virtio_blk(VirtIOBlk *blk, VirtIOHeader *header) {
 
     printk("Find a block device of size ");
     char buf[16];
-    printk(itoa(capacity / 2, buf));
+    printk(itoa(capacity / 2, buf, 10));
     printk(" kiB\n");    
     // init queue
     init_queue(&blk->queue, header, 0, (negotiated_features & VIRTIO_BLK_FEATURE_RING_INDIRECT_DESC) != 0, (negotiated_features & VIRTIO_BLK_FEATURE_RING_INDIRECT_DESC) != 0);
@@ -72,19 +72,24 @@ i64 virtio_blk_read_block(VirtIOBlk *blk, u64 sector, vpn_t buf_vpn, pfn_t buf_p
     u8 status = resp->status;
     uptfree(req_pfn, req_vpn);
     uptfree(resp_pfn, resp_vpn);
+    if (status == VIRTIO_BLK_RESP_STATUS_IO_ERR)
+        printk("[kernel.drivers.virtio] io err\n");
+    else if (status == VIRTIO_BLK_RESP_STATUS_NOT_READY)
+        printk("[kernel.drivers.virtio] not ready\n");
+    else if (status == VIRTIO_BLK_RESP_STATUS_UNSUPPORTED)
+        printk("[kernel.drivers.virtio] unsupported\n");
     return status;
 }
 
 i64 queue_add_notify_pop(VirtIOBlk *blk, pfn_t inputs[], u32 input_lengths[], u8 num_inputs, pfn_t outputs[], u32 output_lengths[], u8 num_outputs) {
-    i32 token = add_queue(&blk->queue, inputs, input_lengths, 1, outputs, output_lengths, 2);
+    i32 token = add_queue(&blk->queue, inputs, input_lengths, num_inputs, outputs, output_lengths, num_outputs);
     if (token < 0) {
         printk("[kernel.drivers.virtio] add queue failed\n");
         return -1;
     }
     // write notify register to notify device
-    // TODO: should_notify
-    if (should_notify(&blk->queue)) 
-        blk->hdr->queue_notify = blk->queue.queue_idx;
+//    if (should_notify(&blk->queue))
+    blk->hdr->queue_notify = blk->queue.queue_idx;
     while (1) {
         __sync_synchronize();
         if (blk->queue.last_used_idx != blk->queue.used->idx)
@@ -99,9 +104,8 @@ i64 queue_add_notify_pop(VirtIOBlk *blk, pfn_t inputs[], u32 input_lengths[], u8
         return -1;
     }
     recycle_descriptors(&blk->queue, index);
-    blk->queue.last_used_idx = (blk->queue.last_used_idx + 1) % (VIRTIO_NUM_DESC - 1);
+    blk->queue.last_used_idx++;
     return len;
-    // pop used
 }
 
 void wrap_virtio_blk_device(BufferedBlockDevice *out, VirtIOBlk *in) {

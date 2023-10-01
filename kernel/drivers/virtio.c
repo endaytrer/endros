@@ -234,11 +234,10 @@ i32 add_queue(VirtIOQueue *queue, pfn_t inputs[], u32 input_lengths[], u8 num_in
     }
     u16 avail_slot = queue->avail_idx & (VIRTIO_NUM_DESC - 1); // using & to warp
 
-    queue->avail->ring[avail_slot] = head;
-
     // fence, adding avail slot index;
+    queue->avail->ring[avail_slot] = head;
     __sync_synchronize();
-    queue->avail_idx++;
+    queue->avail_idx += 1;
     queue->avail->idx = queue->avail_idx;
     __sync_synchronize();
     return head;
@@ -255,7 +254,6 @@ void recycle_descriptors(VirtIOQueue *queue, u16 head) {
         head_desc->len = 0;
         queue->num_used -= 1;
         head_desc->next = original_free_head;
-        queue->desc[head] = *head_desc;
 
         // dealloc. since we allocate this using uptalloc(); we use uptfree();
         // we do not have to free the addresses pointed from indirect list:
@@ -275,7 +273,6 @@ void recycle_descriptors(VirtIOQueue *queue, u16 head) {
                 next = desc->next;
             } else {
                 desc->next = original_free_head;
-                queue->desc[next] = *desc;
                 break;
             }
         }

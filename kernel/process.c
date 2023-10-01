@@ -1,4 +1,5 @@
 #include <string.h>
+#include <fcntl.h>
 #include "process.h"
 #include "elf.h"
 #include "printk.h"
@@ -6,7 +7,6 @@
 #include "timer.h"
 #include "filesystem.h"
 #include "stdio.h"
-#include "fcntl.h"
 #include "fs_file.h"
 
 #define INIT_PROGRAM "/bin/init"
@@ -17,10 +17,7 @@ CPU cpus[NCPU];
 pid_t next_pid = 1;
 
 i64 load_process(PCB *process, File *program) {
-    if (program->type != FILE || !(program->permission & PERMISSION_X)) {
-        printk("[kernel] do not have execute permission on file\n");
-        return -1;
-    }
+    // assert program is loadable and executable. need to be done by exterier function (i.e. `exec`), before freeing the previous process.
     // set process to be ready;
 
     vpn_t ptbase_vpn;
@@ -95,24 +92,6 @@ i64 load_process(PCB *process, File *program) {
 
     app_init_context((TrapContext *)PAGE_2_ADDR(trap_vpn), elf_header->e_entry, PAGE_2_ADDR(max_vpn) + USER_STACK_SIZE, (u64)kernel_sp);
 
-    // set opened files to be [STDIN, STDOUT, STDERR]
-    process->cwd_inode = rootfs.super.root_inode;
-    memset(process->opened_files, 0, sizeof(process->opened_files));
-    process->opened_files[STDIN] = (FileDescriptor) {
-        .file = &stdin,
-        .open_flags = O_RDONLY,
-        .seek = 0
-    };
-    process->opened_files[STDOUT] = (FileDescriptor) {
-        .file = &stdout,
-        .open_flags = O_WRONLY,
-        .seek = 0
-    };
-    process->opened_files[STDERR] = (FileDescriptor) {
-        .file = &stderr,
-        .open_flags = O_WRONLY,
-        .seek = 0
-    };
     return 0;
 }
 void free_process_space(PCB *process) {
@@ -157,6 +136,30 @@ void init_scheduler(void) {
     process->cpuid = cpuid;
     process->pid = next_pid++;
     process->flags = 0;
+
+    // set cwd to be /
+    process->cwd_file.fs = &rootfs;
+    process->cwd_file.inum = rootfs.super.root_inode;
+    fs_file_init(&process->cwd_file);
+
+    // set opened files to be [STDIN, STDOUT, STDERR]
+    memset(process->opened_files, 0, sizeof(process->opened_files));
+    process->opened_files[STDIN] = (FileDescriptor) {
+            .file = &stdin,
+            .open_flags = O_RDONLY,
+            .seek = 0
+    };
+    process->opened_files[STDOUT] = (FileDescriptor) {
+            .file = &stdout,
+            .open_flags = O_WRONLY,
+            .seek = 0
+    };
+    process->opened_files[STDERR] = (FileDescriptor) {
+            .file = &stderr,
+            .open_flags = O_WRONLY,
+            .seek = 0
+    };
+
     FSFile program_fsfile;
     File program;
     getfile(&rootfs.root, INIT_PROGRAM, &program_fsfile);
