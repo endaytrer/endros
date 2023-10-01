@@ -1,6 +1,6 @@
 **/*.o
 .config
-coreos
+endros
 *.img
 kernel/machine.h
 rootfs/bin/*

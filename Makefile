@@ -56,8 +56,8 @@ KERNEL_OBJS += $(patsubst $(KERNEL)/%.S, $(KERNEL)/%.o, $(KERNEL_ASM_SRCS))
 KERNEL_OBJS += $(patsubst $(KERNEL_DRIVER)/%.c, $(KERNEL)/%.o, $(KERNEL_DRIVER_C_SRCS))
 KERNEL_OBJS += $(patsubst $(UTIL)/%.c, $(KERNEL)/%.o, $(UTIL_C_SRCS))
 
-KERNEL_ELF := coreos
-KERNEL_BIN := coreos.img
+KERNEL_ELF := endros
+KERNEL_BIN := endros.img
 KERNEL_LINKER_SCRIPT := $(KERNEL)/kernel.ld
 
 # User Library and Binary
