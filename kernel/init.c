@@ -4,7 +4,8 @@
 #include "fdt.h"
 
 #include "filesystem.h"
-#include <string.h>
+#include "drivers/virtio_gpu.h"
+
 
 extern void sbss();
 extern void ebss();

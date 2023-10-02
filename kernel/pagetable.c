@@ -45,6 +45,7 @@ pfn_t palloc() {
     }
     return pfn_start++;
 }
+
 FreeNode *ptfreelist = NULL;
 
 pfn_t dmalloc(vpn_t *out_vpn, u64 pages) {
@@ -60,7 +61,7 @@ pfn_t dmalloc(vpn_t *out_vpn, u64 pages) {
             if (prev)
                 prev->next = newp;
             else
-                freelist = newp;
+                ptfreelist = newp;
             pfn_t pfn = p->pfn;
             memset(p, 0, pages * PAGESIZE);
             *out_vpn = ADDR_2_PAGE(p);
@@ -70,7 +71,7 @@ pfn_t dmalloc(vpn_t *out_vpn, u64 pages) {
             if (prev)
                 prev->next = p->next;
             else
-                freelist = p->next;
+                ptfreelist = p->next;
             pfn_t pfn = p->pfn;
             memset(p, 0, pages * PAGESIZE);
             *out_vpn = ADDR_2_PAGE(p);
@@ -79,22 +80,27 @@ pfn_t dmalloc(vpn_t *out_vpn, u64 pages) {
         prev = p;
         p = p->next;
     }
-    void *ans = kbrk;
     if (pfn_start + pages > max_pfn) {
         panic("[kernel] cannot allocate more pages\n");
     }
 
-    *out_vpn = ADDR_2_PAGE(kbrk);
-    kbrk = (void *)((u64)kbrk + pages * PAGESIZE);
+    void *ans = ptbrk;
+    vpn_t vpn = ADDR_2_PAGE(ptbrk);
+    *out_vpn = vpn;
+    pfn_t pfn = pfn_start;
+    ptbrk = (void *)((u64)ptbrk + pages * PAGESIZE);
+    pfn_start += pages;
+    // the pages need to be claimed before using ptmap.
+    for (u64 i = 0; i < pages; i++) {
+        ptmap(vpn + i, pfn + i, PTE_VALID | PTE_READ | PTE_WRITE);
+    }
     memset(ans, 0, pages * PAGESIZE);
 
-    pfn_t pfn = pfn_start;
-    pfn_start += pages;
 
     return pfn;
 }
 
-void dmafree(vpn_t vpn, pfn_t pfn, u64 pages) {
+void dmafree(pfn_t pfn, vpn_t vpn, u64 pages) {
     // lazy approach, leave fragments
     FreeNode *free_head = (FreeNode *)PAGE_2_ADDR(vpn);
     free_head->size = pages;
@@ -103,32 +109,32 @@ void dmafree(vpn_t vpn, pfn_t pfn, u64 pages) {
     ptfreelist = free_head;
 }
 
-pfn_t uptalloc(vpn_t *out_vpn) {
-    // allocate user page table
-    if (ptfreelist) {
-        // since every uptalloc have same flags, no need to unmap / remap
-        pfn_t pfn = ptfreelist->pfn;
-        FreeNode *next = ptfreelist->next;
-        vpn_t vpn = ADDR_2_PAGE(ptfreelist);
-        memset(ptfreelist, 0, PAGESIZE);
-        ptfreelist = next;
-        *out_vpn = vpn;
-        return pfn;
-    }
-    vpn_t vpn = ADDR_2_PAGE(ptbrk);
-    pfn_t pfn = palloc_ptr(vpn, PTE_VALID | PTE_READ | PTE_WRITE);
-    ptbrk += PAGESIZE;
-    *out_vpn = vpn;
-    return pfn;
-}
+// pfn_t uptalloc(vpn_t *out_vpn) {
+//     // allocate user page table
+//     if (ptfreelist) {
+//         // since every uptalloc have same flags, no need to unmap / remap
+//         pfn_t pfn = ptfreelist->pfn;
+//         FreeNode *next = ptfreelist->next;
+//         vpn_t vpn = ADDR_2_PAGE(ptfreelist);
+//         memset(ptfreelist, 0, PAGESIZE);
+//         ptfreelist = next;
+//         *out_vpn = vpn;
+//         return pfn;
+//     }
+//     vpn_t vpn = ADDR_2_PAGE(ptbrk);
+//     pfn_t pfn = palloc_ptr(vpn, PTE_VALID | PTE_READ | PTE_WRITE);
+//     ptbrk += PAGESIZE;
+//     *out_vpn = vpn;
+//     return pfn;
+// }
 
-void uptfree(pfn_t pfn, vpn_t vpn) {
-    // free user page table
-    FreeNode *temp = ptfreelist;
-    ptfreelist = (FreeNode *)PAGE_2_ADDR(vpn);
-    ptfreelist->pfn = pfn;
-    ptfreelist->next = temp;
-}
+// void uptfree(pfn_t pfn, vpn_t vpn) {
+//     // free user page table
+//     FreeNode *temp = ptfreelist;
+//     ptfreelist = (FreeNode *)PAGE_2_ADDR(vpn);
+//     ptfreelist->pfn = pfn;
+//     ptfreelist->next = temp;
+// }
 
 pfn_t palloc_ptr(vpn_t vpn, u64 flags) {
     // Allocate one physical page to virtual page vpn. One have to manage the space once allocated.
@@ -235,7 +241,7 @@ void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t us
 
     if (!ptref2->ptable) {
         vpn_t temp_vpn;
-        pfn_t temp_pfn = uptalloc(&temp_vpn);
+        pfn_t temp_pfn = dmalloc(&temp_vpn, 1);
         PTReference_1 *next_ptref = kalloc(2 * PAGESIZE);
 
         *pte = PTE(temp_pfn, PTE_VALID);
@@ -248,7 +254,7 @@ void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t us
 
     if (!ptref1->ptable) {
         vpn_t temp_vpn;
-        pfn_t temp_pfn = uptalloc(&temp_vpn);
+        pfn_t temp_pfn = dmalloc(&temp_vpn, 1);
         vpn_t *next_ptref = kalloc(PAGESIZE);
 
         *pte = PTE(temp_pfn, PTE_VALID);
@@ -284,7 +290,7 @@ void uptunmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t user_vpn) {
     vpn_t *ptref0 = ptref1->pt_ref + VPN(0, user_vpn);
     pfn_t pfn = GET_PFN(pte);
     if (*ptref0) {
-        uptfree(pfn, *ptref0);
+        dmafree(pfn, *ptref0, 1);
     }
     *pte = 0;
 
@@ -306,18 +312,18 @@ void ptref_free(pfn_t ptbase_pfn, vpn_t ptbase_vpn, PTReference_2 *ptref_base) {
                 vpn_t *ptref0 = ptref1->pt_ref + k;
                 if (!*ptref0) continue;
                 // freeing allocated page
-                uptfree(GET_PFN(pte0), *ptref0);
+                dmafree(GET_PFN(pte0), *ptref0, 1);
             }
             // freeing page table level 0, and vpn table
-            uptfree(GET_PFN(pte1), ADDR_2_PAGE(ptref1->ptable));
+            dmafree(GET_PFN(pte1), ADDR_2_PAGE(ptref1->ptable), 1);
             kfree(ptref1->pt_ref, PAGESIZE);
         }
         // freeing page table level 1, and ptref_1 table
-        uptfree(GET_PFN(pte2), ADDR_2_PAGE(ptref2->ptable));
+        dmafree(GET_PFN(pte2), ADDR_2_PAGE(ptref2->ptable), 1);
         kfree(ptref2->pt_ref, PAGESIZE * 2);
     }
     // freeing ptref and ptbase
-    uptfree(ptbase_pfn, ptbase_vpn);
+    dmafree(ptbase_pfn, ptbase_vpn, 1);
     kfree(ptref_base, PAGESIZE * 2);
 }
 
@@ -333,7 +339,7 @@ void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_p
 
         // dst pagetable is empty, so always create pagetable in this step;
         vpn_t kernel_vpn_2;
-        pfn_t pfn_2 = uptalloc(&kernel_vpn_2);
+        pfn_t pfn_2 = dmalloc(&kernel_vpn_2, 1);
         dst_ptref2->pt_ref = kalloc(PAGESIZE * 2);
         dst_ptref2->ptable = (pte_t *)PAGE_2_ADDR(kernel_vpn_2);
         *dst_pte2 = PTE(pfn_2, PTE_VALID);
@@ -347,7 +353,7 @@ void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_p
 
             // dst pagetable is empty, so always create pagetable in this step;
             vpn_t kernel_vpn_1;
-            pfn_t pfn_1 = uptalloc(&kernel_vpn_1);
+            pfn_t pfn_1 = dmalloc(&kernel_vpn_1, 1);
             dst_ptref1->pt_ref = kalloc(PAGESIZE);
             dst_ptref1->ptable = (pte_t *)PAGE_2_ADDR(kernel_vpn_1);
             *dst_pte1 = PTE(pfn_1, PTE_VALID);
@@ -362,7 +368,7 @@ void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_p
 
                 // creating page and corresponding level-0 page entry;
                 vpn_t kernel_vpn;
-                pfn_t pfn = uptalloc(&kernel_vpn);
+                pfn_t pfn = dmalloc(&kernel_vpn, 1);
                 *dst_pte0 = PTE(pfn, GET_FLAGS(src_pte0));
                 *dst_ptref0 = kernel_vpn;
 

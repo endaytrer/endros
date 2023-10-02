@@ -61,16 +61,8 @@ void init_queue(VirtIOQueue *queue, VirtIOHeader *hdr, u16 idx, bool indirect, b
         /// In legacy mode, all three queues are assigned in a single page.
 
         // since we need TWO CONTIGUOUS PHYSICAL pages, we have to MANUALLY ALLOCATE by changing pbrk and pfn_start
-
-        extern void *ptbrk;
-        extern pfn_t pfn_start;
-        vpn_t dma_vpn = ADDR_2_PAGE(ptbrk);
-        pfn_t dma_pfn = pfn_start;
-        ptbrk = (void *)((u64)ptbrk + 2 * PAGESIZE);
-        pfn_start += 2;
-        // map
-        ptmap(dma_vpn, dma_pfn, PTE_VALID | PTE_READ | PTE_WRITE);
-        ptmap(dma_vpn + 1, dma_pfn + 1, PTE_VALID | PTE_READ | PTE_WRITE);
+        vpn_t dma_vpn;
+        pfn_t dma_pfn = dmalloc(&dma_vpn, 2);
 
         desc = (VirtQueueDesc *)PAGE_2_ADDR(dma_vpn);
         avail = (VirtQueueAvail *)ADDR(dma_vpn, sizeof(VirtQueueDesc) * VIRTIO_NUM_DESC);
@@ -97,10 +89,10 @@ void init_queue(VirtIOQueue *queue, VirtIOHeader *hdr, u16 idx, bool indirect, b
 
         // allocate flexible.
         vpn_t driver_to_device_vpn;
-        pfn_t driver_to_device_pfn = uptalloc(&driver_to_device_vpn);
+        pfn_t driver_to_device_pfn = dmalloc(&driver_to_device_vpn, 1);
 
         vpn_t device_to_driver_vpn;
-        pfn_t device_to_driver_pfn = uptalloc(&device_to_driver_vpn);
+        pfn_t device_to_driver_pfn = dmalloc(&device_to_driver_vpn, 1);
 
         desc = (VirtQueueDesc *)PAGE_2_ADDR(driver_to_device_vpn);
         avail = (VirtQueueAvail *)ADDR(driver_to_device_vpn, sizeof(VirtQueueDesc) * VIRTIO_NUM_DESC);
@@ -157,7 +149,7 @@ i32 add_queue(VirtIOQueue *queue, pfn_t inputs[], u32 input_lengths[], u8 num_in
             panic("[kernel.drivers.virtio] trying to insert more than pagesize blocks\n");
         }
         vpn_t indirect_vpn;
-        pfn_t indirect_pfn = uptalloc(&indirect_vpn);
+        pfn_t indirect_pfn = dmalloc(&indirect_vpn, 1);
         VirtQueueDesc *indirect_list = (VirtQueueDesc *)PAGE_2_ADDR(indirect_vpn);
         for (u16 i = 0; i < num_inputs; i++) {
             indirect_list[i].addr = (u64)PAGE_2_ADDR(inputs[i]);
@@ -236,10 +228,10 @@ void recycle_descriptors(VirtIOQueue *queue, u16 head) {
         queue->num_used -= 1;
         head_desc->next = original_free_head;
 
-        // dealloc. since we allocate this using uptalloc(); we use uptfree();
+        // dealloc. since we allocate this using dmalloc(, 1); we use dmafree(, 1);
         // we do not have to free the addresses pointed from indirect list:
         // - req / resp are handelled 
-        uptfree(pfn, ADDR_2_PAGE(indirect_list));
+        dmafree(pfn, ADDR_2_PAGE(indirect_list), 1);
         queue->indirect_lists[head] = NULL;
         // apply changes. Don't know if it is necessary.
     } else {

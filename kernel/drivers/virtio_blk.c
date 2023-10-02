@@ -16,7 +16,7 @@ void init_virtio_blk(VirtIOBlk *blk, VirtIOHeader *header) {
     printk(itoa(capacity / 2, buf, 10));
     printk(" kiB\n");    
     // init queue
-    init_queue(&blk->queue, header, 0, (negotiated_features & VIRTIO_BLK_FEATURE_RING_INDIRECT_DESC) != 0, (negotiated_features & VIRTIO_BLK_FEATURE_RING_INDIRECT_DESC) != 0);
+    init_queue(&blk->queue, header, 0, (negotiated_features & VIRTIO_FEATURE_RING_INDIRECT_DESC) != 0, (negotiated_features & VIRTIO_FEATURE_RING_INDIRECT_DESC) != 0);
     blk->hdr = header;
     blk->negotiated_features = negotiated_features;
     blk->capacity = capacity;
@@ -25,7 +25,7 @@ void init_virtio_blk(VirtIOBlk *blk, VirtIOHeader *header) {
 
 i64 virtio_blk_write_block(VirtIOBlk *blk, u64 sector, vpn_t buf_vpn, pfn_t buf_pfn) {
     vpn_t req_vpn;
-    pfn_t req_pfn = uptalloc(&req_vpn);
+    pfn_t req_pfn = dmalloc(&req_vpn, 1);
     VirtIOBlkReq *req = (VirtIOBlkReq *)PAGE_2_ADDR(req_vpn);
     *req = (VirtIOBlkReq) {
         .req_type = Out,
@@ -34,7 +34,7 @@ i64 virtio_blk_write_block(VirtIOBlk *blk, u64 sector, vpn_t buf_vpn, pfn_t buf_
     };
 
     vpn_t resp_vpn;
-    pfn_t resp_pfn = uptalloc(&resp_vpn);
+    pfn_t resp_pfn = dmalloc(&resp_vpn, 1);
     VirtIOBlkResp *resp = (VirtIOBlkResp *)PAGE_2_ADDR(resp_vpn);
     resp->status = VIRTIO_BLK_RESP_STATUS_NOT_READY;
     pfn_t inputs[] = {req_pfn, buf_pfn};
@@ -44,13 +44,13 @@ i64 virtio_blk_write_block(VirtIOBlk *blk, u64 sector, vpn_t buf_vpn, pfn_t buf_
     queue_add_notify_pop(blk, inputs, input_lengths, 2, outputs, output_lengths, 1);
 
     u8 status = resp->status;
-    uptfree(req_pfn, req_vpn);
-    uptfree(resp_pfn, resp_vpn);
+    dmafree(req_pfn, req_vpn, 1);
+    dmafree(resp_pfn, resp_vpn, 1);
     return status;
 }
 i64 virtio_blk_read_block(VirtIOBlk *blk, u64 sector, vpn_t buf_vpn, pfn_t buf_pfn) {
     vpn_t req_vpn;
-    pfn_t req_pfn = uptalloc(&req_vpn);
+    pfn_t req_pfn = dmalloc(&req_vpn, 1);
     VirtIOBlkReq *req = (VirtIOBlkReq *)PAGE_2_ADDR(req_vpn);
     *req = (VirtIOBlkReq) {
         .req_type = In,
@@ -59,7 +59,7 @@ i64 virtio_blk_read_block(VirtIOBlk *blk, u64 sector, vpn_t buf_vpn, pfn_t buf_p
     };
 
     vpn_t resp_vpn;
-    pfn_t resp_pfn = uptalloc(&resp_vpn);
+    pfn_t resp_pfn = dmalloc(&resp_vpn, 1);
     VirtIOBlkResp *resp = (VirtIOBlkResp *)PAGE_2_ADDR(resp_vpn);
     resp->status = VIRTIO_BLK_RESP_STATUS_NOT_READY;
     pfn_t inputs[] = {req_pfn};
@@ -70,8 +70,8 @@ i64 virtio_blk_read_block(VirtIOBlk *blk, u64 sector, vpn_t buf_vpn, pfn_t buf_p
     queue_add_notify_pop(blk, inputs, input_lengths, 1, outputs, output_lengths, 2);
 
     u8 status = resp->status;
-    uptfree(req_pfn, req_vpn);
-    uptfree(resp_pfn, resp_vpn);
+    dmafree(req_pfn, req_vpn, 1);
+    dmafree(resp_pfn, resp_vpn, 1);
     if (status == VIRTIO_BLK_RESP_STATUS_IO_ERR)
         printk("[kernel.drivers.virtio] io err\n");
     else if (status == VIRTIO_BLK_RESP_STATUS_NOT_READY)

@@ -22,7 +22,7 @@ i64 load_process(PCB *process, File *program) {
 
     vpn_t ptbase_vpn;
 
-    pfn_t ptbase_pfn = uptalloc(&ptbase_vpn);
+    pfn_t ptbase_pfn = dmalloc(&ptbase_vpn, 1);
     process->ptbase_pfn = ptbase_pfn;
     process->ptbase_vpn = ptbase_vpn;
 
@@ -54,7 +54,7 @@ i64 load_process(PCB *process, File *program) {
             max_vpn = ADDR_2_PAGEUP(end_va);
         for (vpn_t vpn = ADDR_2_PAGE(start_va); vpn < ADDR_2_PAGEUP(end_va); ++vpn) {
             vpn_t kernel_vpn;
-            pfn_t pfn = uptalloc(&kernel_vpn);
+            pfn_t pfn = dmalloc(&kernel_vpn, 1);
             u64 offset = PAGE_2_ADDR(vpn) - start_va;
             memcpy((void *)PAGE_2_ADDR(kernel_vpn), (void *)((u64)program_start + offset), PAGESIZE);
             uptmap(ptbase_vpn, ptref_base, kernel_vpn, vpn, pfn, flags);
@@ -67,7 +67,7 @@ i64 load_process(PCB *process, File *program) {
     vpn_t heap_bottom = max_vpn + USER_STACK_SIZE / PAGESIZE;
     for (vpn_t vpn = max_vpn; vpn < heap_bottom; vpn++) {
         vpn_t kernel_vpn;
-        pfn_t pfn = uptalloc(&kernel_vpn);
+        pfn_t pfn = dmalloc(&kernel_vpn, 1);
         uptmap(ptbase_vpn, ptref_base, kernel_vpn, vpn, pfn, PTE_USER | PTE_VALID | PTE_READ | PTE_WRITE);
     }
     process->brk = (void *)PAGE_2_ADDR(heap_bottom);
@@ -75,7 +75,7 @@ i64 load_process(PCB *process, File *program) {
 
     // trap context
     vpn_t trap_vpn;
-    pfn_t pfn = uptalloc(&trap_vpn);
+    pfn_t pfn = dmalloc(&trap_vpn, 1);
     uptmap(ptbase_vpn, ptref_base, trap_vpn, ADDR_2_PAGE(TRAPFRAME), pfn, PTE_VALID | PTE_READ | PTE_WRITE);
     process->trapframe = (TrapContext *)PAGE_2_ADDR(trap_vpn);
 

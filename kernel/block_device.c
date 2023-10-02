@@ -26,7 +26,7 @@ BlockBuffer *get_block_buffer(BufferedBlockDevice *buffered_blk_dev, u64 block_i
     int cache_size = buffered_blk_dev->cache_size;
     if (cache_size < CACHE_BLOCKS) {
         vpn_t blk_vpn;
-        pfn_t blk_pfn = uptalloc(&blk_vpn);
+        pfn_t blk_pfn = dmalloc(&blk_vpn, 1);
 
         // if no blocks are ever evicted, the last free index is always num_blocks
         buffered_blk_dev->buffer_list[cache_size] = (BlockBuffer) {

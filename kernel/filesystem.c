@@ -1,31 +1,39 @@
 #include <string.h>
+#include "drivers/virtio_blk.h"
+#include "drivers/virtio_gpu.h"
 #include "filesystem.h"
 #include "fs_file.h"
 #include "pagetable.h"
-#include "drivers/virtio_blk.h"
 #include "printk.h"
 #include "machine_spec.h"
-
 Filesystem rootfs;
 
 static VirtIOBlk virtio_blk;
 static BufferedBlockDevice root_block_buffered_dev;
 static File root_block_device;
-
+static VirtIOGPU virtio_gpu;
 void init_filesystem(void) {
     // find a loadable disk, the one with smallest address
     VirtIOHeader *blk_header = (VirtIOHeader *)(~((u64)0));
-
+    VirtIOHeader *gpu_header = (VirtIOHeader *)(~((u64)0));
     for (int i = 0; i < num_virtio_mmio; i++) {
         if (virtio_mmio_headers[i]->device_id == VIRTIO_DEVICE_BLK &&
                 (u64)virtio_mmio_headers[i] < (u64)blk_header) {
             blk_header = virtio_mmio_headers[i];
-
+        }
+        if (virtio_mmio_headers[i]->device_id == VIRTIO_DEVICE_GPU &&
+            (u64)virtio_mmio_headers[i] < (u64)gpu_header) {
+            gpu_header = virtio_mmio_headers[i];
         }
     }
+
     if (blk_header == (VirtIOHeader *)(~((u64)0))) {
         panic("[kernel] Cannot find loadable disk\n");
     }
+    if (gpu_header != (VirtIOHeader *)(~((u64)0))) {
+        init_virtio_gpu(&virtio_gpu, gpu_header);
+    }
+
     init_virtio_blk(&virtio_blk, blk_header);
     wrap_virtio_blk_device(&root_block_buffered_dev, &virtio_blk);
     wrap_block_buffer_file(&root_block_device, &root_block_buffered_dev);

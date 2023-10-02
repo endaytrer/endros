@@ -1,6 +1,5 @@
 #include <string.h>
 #include "fdt.h"
-#include "printk.h"
 #include "drivers/virtio.h"
 #include "machine_spec.h"
 /// @brief  A push-down state machine to parse flattened devicetree.
@@ -15,7 +14,6 @@ VirtIOHeader *virtio_mmio_headers[MAX_VIRTIO_MMIO];
 
 i64 parse_dtb(struct fdt_header *dtb) {
     // dtb discovery
-    char buf[16];
     char *name_block = (char *)((u64)dtb + ntohl(dtb->off_dt_strings));
     fdt32_t *fdt_structs = (fdt32_t *)((u64)dtb + ntohl(dtb->off_dt_struct));
 
@@ -46,10 +44,7 @@ i64 parse_dtb(struct fdt_header *dtb) {
             case initial:
                 if (input == FDT_NOP) break;
                 if (input == FDT_BEGIN_NODE) {
-                    for (u32 j = 0; j < indent; j++)
-                        printk("    ");
                     state = nodename;
-                    printk("<node name=\"");
                     level_names[indent] = (char *)(fdt_structs + i + 1);
                     indent++;
                 } else {
@@ -58,32 +53,21 @@ i64 parse_dtb(struct fdt_header *dtb) {
                 break;
             case nodename:
                 *(u32 *)name = ntohl(input);
-                printk(name);
                 if (name[0] == '\0' || name[1] == '\0' || name[2] == '\0' || name[3] == '\0') {
                     // name parse done.
                     state = nodeprop;
-                    printk("\">\n");
                 }
                 break;
             case nodeprop:
                 if (input == FDT_NOP) break;
                 if (input == FDT_PROP) {
-                    for (u32 j = 0; j < indent; j++)
-                        printk("    ");
                     state = proplen;
-                    printk("<property name=\"");
                 } else if (input == FDT_BEGIN_NODE) {
-                    for (u32 j = 0; j < indent; j++)
-                        printk("    ");
                     state = nodename;
-                    printk("<node name=\"");
                     level_names[indent] = (char *)(fdt_structs + i + 1);
                     indent++;
                 } else if (input == FDT_END_NODE) {
                     indent--;
-                    for (u32 j = 0; j < indent; j++)
-                        printk("    ");
-                    printk("</node>\n");
                 } else if (input == FDT_END) {
                     if (indent != 0)
                         return -1;
@@ -131,13 +115,10 @@ i64 parse_dtb(struct fdt_header *dtb) {
                     u64 begin = ntohll(*(fdt64_t *)(fdt_structs + i + 1));
                     virtio_mmio_headers[num_virtio_mmio++] = (VirtIOHeader *)begin;
                 }
-                printk(prop_name);
-                printk("\">");
 
                 if (prop_l != 0)
                     state = propval;
                 else {
-                    printk("</property>\n");
                     state = nodeprop;
                 }
                 break;
@@ -145,12 +126,9 @@ i64 parse_dtb(struct fdt_header *dtb) {
                 *(u32 *)name = ntohl(input);
                 int max_l = prop_l > 4 ? 4 : prop_l;
                 for (int j = 0; j < max_l; j++) {
-                    printk(itoa(name[j], buf, 16));
-                    printk(" ");
                 }
                 prop_l -= 4;
                 if (prop_l <= 0) {
-                    printk("</property>\n");
                     state = nodeprop;
                 }
                 break;

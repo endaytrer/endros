@@ -24,7 +24,7 @@ i64 sys_sbrk(i64 size) {
     if (size > 0) {
         for (int vpn = ADDR_2_PAGEUP(old_brk); vpn < ADDR_2_PAGEUP((u64)old_brk + size); ++vpn) {
             vpn_t kernel_vpn;
-            pfn_t pfn = uptalloc(&kernel_vpn);
+            pfn_t pfn = dmalloc(&kernel_vpn, 1);
             uptmap(proc->ptbase_vpn, proc->ptref_base, kernel_vpn, vpn, pfn, PTE_USER | PTE_VALID | PTE_READ | PTE_WRITE);
         }
     }
@@ -95,7 +95,7 @@ i64 sys_fork(void) {
     new_proc->flags = 0;
 
     vpn_t ptbase_vpn;
-    pfn_t ptbase_pfn = uptalloc(&ptbase_vpn);
+    pfn_t ptbase_pfn = dmalloc(&ptbase_vpn, 1);
     PTReference_2 *ptref_base = kalloc(2 * PAGESIZE);
 
     new_proc->ptbase_vpn = ptbase_vpn;
