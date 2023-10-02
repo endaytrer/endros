@@ -75,4 +75,6 @@ struct fdt_property {
 #define FDT_V16_SIZE	FDT_V3_SIZE
 #define FDT_V17_SIZE	(FDT_V16_SIZE + sizeof(fdt32_t))
 
+i64 parse_dtb(struct fdt_header *dtb);
+
 #endif /* FDT_H */

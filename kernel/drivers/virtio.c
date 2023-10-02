@@ -72,20 +72,12 @@ void init_queue(VirtIOQueue *queue, VirtIOHeader *hdr, u16 idx, bool indirect, b
         ptmap(dma_vpn, dma_pfn, PTE_VALID | PTE_READ | PTE_WRITE);
         ptmap(dma_vpn + 1, dma_pfn + 1, PTE_VALID | PTE_READ | PTE_WRITE);
 
-
-        queue->layout.legacy.dma.vpn = dma_vpn;
-        queue->layout.legacy.dma.pfn = dma_pfn;
-        queue->layout.legacy.dma.pages = 2;
         desc = (VirtQueueDesc *)PAGE_2_ADDR(dma_vpn);
         avail = (VirtQueueAvail *)ADDR(dma_vpn, sizeof(VirtQueueDesc) * VIRTIO_NUM_DESC);
         used = (VirtQueueUsed *)PAGE_2_ADDR(dma_vpn + 1);
 
         queue->layout.legacy.avail_offset = sizeof(VirtQueueDesc) * VIRTIO_NUM_DESC;
         queue->layout.legacy.used_offset = PAGESIZE;
-
-        // u64 paddr_desc = (u64)PAGE_2_ADDR(dma_pfn);
-        // u64 paddr_avail = (u64)ADDR(dma_pfn, sizeof(VirtQueueDesc) * VIRTIO_NUM_DESC);
-        // u64 paddr_used = (u64)ADDR(dma_pfn, sizeof(VirtQueueDesc) * VIRTIO_NUM_DESC + sizeof(VirtQueueAvail));
 
         // Select queue
         hdr->queue_sel = idx;
@@ -110,17 +102,6 @@ void init_queue(VirtIOQueue *queue, VirtIOHeader *hdr, u16 idx, bool indirect, b
         vpn_t device_to_driver_vpn;
         pfn_t device_to_driver_pfn = uptalloc(&device_to_driver_vpn);
 
-        queue->layout.modern.driver_to_device_dma = (struct dma_t) {
-            .pages = 1,
-            .pfn = driver_to_device_pfn,
-            .vpn = driver_to_device_vpn
-        };
-
-        queue->layout.modern.device_to_driver_dma = (struct dma_t) {
-            .pages = 1,
-            .pfn = device_to_driver_pfn,
-            .vpn = device_to_driver_vpn
-        };
         desc = (VirtQueueDesc *)PAGE_2_ADDR(driver_to_device_vpn);
         avail = (VirtQueueAvail *)ADDR(driver_to_device_vpn, sizeof(VirtQueueDesc) * VIRTIO_NUM_DESC);
         used = (VirtQueueUsed *)PAGE_2_ADDR(device_to_driver_vpn);

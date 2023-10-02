@@ -12,7 +12,7 @@
 #define NUM_FILES 64
 #define USER_STACK_SIZE 0x100000
 #define KERNEL_STACK_SIZE 0x100000
-#define APP_SIZE_LIMIT 0x20000
+#define MAX_CPUS 64
 #define HEAP_TOP 0x4000000000
 
 #define FLAGS_WAITED 0x1
@@ -58,7 +58,7 @@ typedef struct {
     PCB *running;
 } CPU;
 extern PCB process_control_table[NUM_PROCS];
-extern CPU cpus[NCPU];
+extern CPU cpus[MAX_CPUS];
 
 
 

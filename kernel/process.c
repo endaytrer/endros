@@ -13,7 +13,7 @@
 
 
 PCB process_control_table[NUM_PROCS];
-CPU cpus[NCPU];
+CPU cpus[MAX_CPUS];
 pid_t next_pid = 1;
 
 i64 load_process(PCB *process, File *program) {

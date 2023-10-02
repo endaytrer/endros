@@ -20,10 +20,8 @@
 
 typedef u64 pte_t;
 typedef struct free_node_t {
-    union {
-        u64 size;
-        pfn_t pfn;
-    } type;
+    u64 size;
+    pfn_t pfn;
     struct free_node_t *next;
 } FreeNode;
 
@@ -38,6 +36,10 @@ typedef struct {
     pte_t *ptable;
     PTReference_1 *pt_ref;
 } PTReference_2;
+
+// dma stuff
+pfn_t dmalloc(vpn_t *out_vpn, u64 pages);
+void dmafree(vpn_t vpn, pfn_t pfn, u64 pages);
 
 // user page stuff
 vpn_t walkupt(const PTReference_2 *ptref_base, vpn_t user_vpn);

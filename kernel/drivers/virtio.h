@@ -3,7 +3,27 @@
 
 #include <type.h>
 #include "../mem.h"
-#define VIRTIO0 ((VirtIOHeader *)0x10001000)
+
+
+#define VIRTIO_DEVICE_NETWORK 1
+#define VIRTIO_DEVICE_BLK 2
+#define VIRTIO_DEVICE_CONSOLE 3
+#define VIRTIO_DEVICE_ENTROPY 4
+#define VIRTIO_DEVICE_BALLOON 5
+#define VIRTIO_DEVICE_SCSI 8
+#define VIRTIO_DEVICE_GPU 16
+#define VIRTIO_DEVICE_INPUT 18
+#define VIRTIO_DEVICE_SOCKET 19
+#define VIRTIO_DEVICE_CRYPTO 20
+#define VIRTIO_DEVICE_IOMMU 23
+#define VIRTIO_DEVICE_MEMORY 24
+#define VIRTIO_DEVICE_SOUND 25
+#define VIRTIO_DEVICE_FS 26
+#define VIRTIO_DEVICE_PMEM 27
+#define VIRTIO_DEVICE_RPMB 28
+#define VIRTIO_DEVICE_SCMI 32
+#define VIRTIO_DEVICE_I2C 34
+#define VIRTIO_DEVICE_GPIO 41
 
 #define VIRTIO_VERSION_LEGACY 0x1
 #define VIRTIO_VERSION_MODERN 0x2
@@ -218,13 +238,10 @@ typedef struct {
     pfn_t indirect_pfns[VIRTIO_NUM_DESC];
     union {
         struct {
-            struct dma_t dma;
             u64 avail_offset;
             u64 used_offset;
         } legacy;
         struct {
-            struct dma_t driver_to_device_dma;
-            struct dma_t device_to_driver_dma;
             u64 avail_offset;
         } modern;
     } layout;

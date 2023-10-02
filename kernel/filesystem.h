@@ -59,7 +59,8 @@ typedef struct filesystem_t {
 } Filesystem;
 
 extern Filesystem rootfs;
-void init_filesystem(Filesystem *filesystem, File *dev);
+void init_filesystem(void);
+void create_filesystem(Filesystem *filesystem, File *dev);
 void ls(struct fs_file_t *dir);
 i64 getfile(FSFile *cwd, const char *path, FSFile *fileout);
 #endif

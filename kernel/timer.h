@@ -2,8 +2,9 @@
 #define _K_TIMER_H
 
 #include <type.h>
-#include "machine.h"
 #include "trap.h"
+#include "machine_spec.h"
+
 #define TICKS_PER_SEC 100
 #define MICRO_PER_SEC 1000000
 
@@ -28,7 +29,7 @@ static inline __attribute__((always_inline)) u64 get_time(void) {
 }
 
 static inline __attribute__((always_inline)) u64 get_time_us(void) {
-    return get_time() / (CLOCK_FREQ / MICRO_PER_SEC);
+    return get_time() / (clock_freq / MICRO_PER_SEC);
 }
 
 void set_next_trigger(void);

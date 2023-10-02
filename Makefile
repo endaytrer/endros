@@ -20,7 +20,7 @@ GDB := $(PREFIX)gdb
 OBJCOPY := $(PREFIX)objcopy
 
 QEMU := qemu-system-riscv64
-QEMUOPTS := -machine virt -nographic
+QEMUOPTS := -machine virt
 ifdef DEBUG
 QEMUOPTS += -s -S
 endif
@@ -185,7 +185,9 @@ qemu: $(CONFIG) $(FSIMG) $(KERNEL_BIN)
 		-m $(shell $(GENHDRS) -g MEM_SIZE -c $(CONFIG)) \
 		-global virtio-mmio.force-legacy=false \
 		-drive file=$(FSIMG),if=none,format=raw,id=x0 \
-		-device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+		-device virtio-blk-device,drive=x0 \
+		-device virtio-gpu-device \
+		-nographic
 
 gdb: $(KERNEL_ELF)
 	$(GDB) \

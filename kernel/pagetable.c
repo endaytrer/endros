@@ -2,6 +2,7 @@
 #include "drivers/virtio.h"
 #include "printk.h"
 #include "pagetable.h"
+#include "machine_spec.h"
 
 pfn_t pfn_start;
 pfn_t pt_base;
@@ -33,21 +34,80 @@ void *pttop = (void *)0x4000000000;
 pfn_t palloc() {
     // Allocate one physical page to void. Use this for pagetables.
     if (pfreelist) {
-        pfn_t pfn = pfreelist->type.pfn;
+        pfn_t pfn = pfreelist->pfn;
         FreeNode *next = pfreelist->next;
         ptunmap(ADDR_2_PAGE(pfreelist));
         pfreelist = next;
         return pfn;
     }
+    if (pfn_start >= max_pfn) {
+        panic("[kernel] cannot allocate more pages\n");
+    }
     return pfn_start++;
 }
-
 FreeNode *ptfreelist = NULL;
+
+pfn_t dmalloc(vpn_t *out_vpn, u64 pages) {
+    // dmalloc/dmafree and uptalloc/uptfree also shares ptfreelist freelist:
+    // They are all sizeable, physically allocatable and contiguous.
+    FreeNode *p = ptfreelist, *prev = NULL;
+    while (p != NULL) {
+        if (p->size > pages) {
+            FreeNode *newp = (FreeNode *)((u64)p + pages * PAGESIZE);
+            newp->next = p->next;
+            newp->size = (p->size - pages);
+            newp->pfn = (p->pfn + pages);
+            if (prev)
+                prev->next = newp;
+            else
+                freelist = newp;
+            pfn_t pfn = p->pfn;
+            memset(p, 0, pages * PAGESIZE);
+            *out_vpn = ADDR_2_PAGE(p);
+            return pfn;
+
+        } else if (p->size == pages) {
+            if (prev)
+                prev->next = p->next;
+            else
+                freelist = p->next;
+            pfn_t pfn = p->pfn;
+            memset(p, 0, pages * PAGESIZE);
+            *out_vpn = ADDR_2_PAGE(p);
+            return pfn;
+        }
+        prev = p;
+        p = p->next;
+    }
+    void *ans = kbrk;
+    if (pfn_start + pages > max_pfn) {
+        panic("[kernel] cannot allocate more pages\n");
+    }
+
+    *out_vpn = ADDR_2_PAGE(kbrk);
+    kbrk = (void *)((u64)kbrk + pages * PAGESIZE);
+    memset(ans, 0, pages * PAGESIZE);
+
+    pfn_t pfn = pfn_start;
+    pfn_start += pages;
+
+    return pfn;
+}
+
+void dmafree(vpn_t vpn, pfn_t pfn, u64 pages) {
+    // lazy approach, leave fragments
+    FreeNode *free_head = (FreeNode *)PAGE_2_ADDR(vpn);
+    free_head->size = pages;
+    free_head->pfn = pfn;
+    free_head->next = ptfreelist;
+    ptfreelist = free_head;
+}
+
 pfn_t uptalloc(vpn_t *out_vpn) {
     // allocate user page table
     if (ptfreelist) {
         // since every uptalloc have same flags, no need to unmap / remap
-        pfn_t pfn = ptfreelist->type.pfn;
+        pfn_t pfn = ptfreelist->pfn;
         FreeNode *next = ptfreelist->next;
         vpn_t vpn = ADDR_2_PAGE(ptfreelist);
         memset(ptfreelist, 0, PAGESIZE);
@@ -66,20 +126,23 @@ void uptfree(pfn_t pfn, vpn_t vpn) {
     // free user page table
     FreeNode *temp = ptfreelist;
     ptfreelist = (FreeNode *)PAGE_2_ADDR(vpn);
-    ptfreelist->type.pfn = pfn;
+    ptfreelist->pfn = pfn;
     ptfreelist->next = temp;
 }
 
 pfn_t palloc_ptr(vpn_t vpn, u64 flags) {
     // Allocate one physical page to virtual page vpn. One have to manage the space once allocated.
     if (pfreelist) {
-        pfn_t pfn = pfreelist->type.pfn;
+        pfn_t pfn = pfreelist->pfn;
         FreeNode *next = pfreelist->next;
         ptunmap(ADDR_2_PAGE(pfreelist));
         pfreelist = next;
         ptmap(vpn, pfn, flags);
         memset((void *)PAGE_2_ADDR(vpn), 0, PAGESIZE);
         return pfn;
+    }
+    if (pfn_start >= max_pfn) {
+        panic("[kernel] cannot allocate more pages\n");
     }
     pfn_t pfn = pfn_start++;
     ptmap(vpn, pfn, flags);
@@ -90,7 +153,7 @@ pfn_t palloc_ptr(vpn_t vpn, u64 flags) {
 void pfree(pfn_t pfn, vpn_t vpn) {
     FreeNode *temp = pfreelist;
     pfreelist = (FreeNode *)PAGE_2_ADDR(vpn);
-    pfreelist->type.pfn = pfn;
+    pfreelist->pfn = pfn;
     pfreelist->next = temp;
 }
 
@@ -101,17 +164,17 @@ void *kalloc(u64 size) {
 
     FreeNode *p = freelist, *prev = NULL;
     while (p != NULL) {
-        if (p->type.size > pages) {
+        if (p->size > pages) {
             FreeNode *newp = (FreeNode *)((u64)p + pages * PAGESIZE);
             newp->next = p->next;
-            newp->type.size = (p->type.size - pages);
+            newp->size = (p->size - pages);
             if (prev)
                 prev->next = newp;
             else
                 freelist = newp;
             memset(p, 0, pages * PAGESIZE);
             return p;
-        } else if (p->type.size == pages) {
+        } else if (p->size == pages) {
             if (prev)
                 prev->next = p->next;
             else
@@ -136,7 +199,7 @@ void kfree(void *ptr, u64 size) {
     u64 pages = ADDR_2_PAGEUP(size);
     // lazy approach, leave fragments
     FreeNode *free_head = (FreeNode *)ptr;
-    free_head->type.size = pages;
+    free_head->size = pages;
     free_head->next = freelist;
     freelist = free_head;
 }
@@ -439,8 +502,10 @@ void init_pagetable(void) {
     // map trampoline with r-x
     ptmap_physical(ADDR_2_PAGE(TRAMPOLINE), ADDR_2_PAGE(strampoline), PTE_VALID | PTE_READ | PTE_EXECUTE);
 
-    // map virtio device 0
-    ptmap_physical(ADDR_2_PAGE(VIRTIO0), ADDR_2_PAGE(VIRTIO0), PTE_VALID | PTE_READ | PTE_WRITE);
+    // identical map virtio devices
+    for (int i = 0; i < num_virtio_mmio; i++) {
+        ptmap_physical(ADDR_2_PAGE(virtio_mmio_headers[i]), ADDR_2_PAGE(virtio_mmio_headers[i]), PTE_VALID | PTE_READ | PTE_WRITE);
+    }
 
     // activate paging
     u64 token = ((u64)1 << 63) | pt_base;

@@ -1,7 +1,6 @@
 #include <string.h>
 #include "syscall.h"
 #include "printk.h"
-#include "machine.h"
 #include "timer.h"
 #include "process.h"
 #include "pagetable.h"
