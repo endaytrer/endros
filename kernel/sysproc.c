@@ -24,7 +24,7 @@ i64 sys_sbrk(i64 size) {
     if (size > 0) {
         for (int vpn = ADDR_2_PAGEUP(old_brk); vpn < ADDR_2_PAGEUP((u64)old_brk + size); ++vpn) {
             vpn_t kernel_vpn;
-            pfn_t pfn = dmalloc(&kernel_vpn, 1);
+            pfn_t pfn = dmalloc(&kernel_vpn, 1, false);
             uptmap(proc->ptbase_vpn, proc->ptref_base, kernel_vpn, vpn, pfn, PTE_USER | PTE_VALID | PTE_READ | PTE_WRITE);
         }
     }
@@ -42,7 +42,7 @@ i64 sys_get_time(TimeVal *ts, u64 _tz) {
     TimeVal *kernel_ts = (TimeVal *)ADDR(kernel_vpn, OFFSET(ts));
 
     kernel_ts->usec = get_time_us();
-    kernel_ts->sec = ts->usec / MICRO_PER_SEC;
+    kernel_ts->sec = kernel_ts->usec / MICRO_PER_SEC;
     return 0;
 }
 
@@ -95,7 +95,7 @@ i64 sys_fork(void) {
     new_proc->flags = 0;
 
     vpn_t ptbase_vpn;
-    pfn_t ptbase_pfn = dmalloc(&ptbase_vpn, 1);
+    pfn_t ptbase_pfn = dmalloc(&ptbase_vpn, 1, true);
     PTReference_2 *ptref_base = kalloc(2 * PAGESIZE);
 
     new_proc->ptbase_vpn = ptbase_vpn;

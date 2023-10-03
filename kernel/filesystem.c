@@ -6,34 +6,19 @@
 #include "pagetable.h"
 #include "printk.h"
 #include "machine_spec.h"
+#include "stdio.h"
+
 Filesystem rootfs;
 
 static VirtIOBlk virtio_blk;
 static BufferedBlockDevice root_block_buffered_dev;
 static File root_block_device;
-static VirtIOGPU virtio_gpu;
-void init_filesystem(void) {
+VirtIOGPU virtio_gpu;
+File gpu_device;
+
+
+void init_filesystem(VirtIOHeader *blk_header) {
     // find a loadable disk, the one with smallest address
-    VirtIOHeader *blk_header = (VirtIOHeader *)(~((u64)0));
-    VirtIOHeader *gpu_header = (VirtIOHeader *)(~((u64)0));
-    for (int i = 0; i < num_virtio_mmio; i++) {
-        if (virtio_mmio_headers[i]->device_id == VIRTIO_DEVICE_BLK &&
-                (u64)virtio_mmio_headers[i] < (u64)blk_header) {
-            blk_header = virtio_mmio_headers[i];
-        }
-        if (virtio_mmio_headers[i]->device_id == VIRTIO_DEVICE_GPU &&
-            (u64)virtio_mmio_headers[i] < (u64)gpu_header) {
-            gpu_header = virtio_mmio_headers[i];
-        }
-    }
-
-    if (blk_header == (VirtIOHeader *)(~((u64)0))) {
-        panic("[kernel] Cannot find loadable disk\n");
-    }
-    if (gpu_header != (VirtIOHeader *)(~((u64)0))) {
-        init_virtio_gpu(&virtio_gpu, gpu_header);
-    }
-
     init_virtio_blk(&virtio_blk, blk_header);
     wrap_virtio_blk_device(&root_block_buffered_dev, &virtio_blk);
     wrap_block_buffer_file(&root_block_device, &root_block_buffered_dev);
@@ -52,8 +37,17 @@ void create_filesystem(Filesystem *fs, File *dev) {
     fs->root.fs = fs;
     fs->root.inum = fs->super.root_inode;
     fs_file_init(&fs->root);
+    File outfile;
+    getfile(&fs->root, "/dev", &outfile);
+    memcpy(&fs->dev, outfile.super, sizeof(FSFile));
+    kfree(outfile.super, sizeof(FSFile));
 }
-i64 getfile(FSFile *cwd, const char *path, FSFile *fileout) {
+/// @brief Get a file / dev.
+/// @param cwd
+/// @param path 
+/// @param file_out output file
+/// @return t
+i64 getfile(FSFile *cwd, const char *path, File *out) {
 
     const char *ptr = path;
     if (*ptr == '/') {
@@ -65,6 +59,8 @@ i64 getfile(FSFile *cwd, const char *path, FSFile *fileout) {
         return -1;
     }
     const char *end = ptr;
+
+    FSFile *fileout = kalloc(sizeof(FSFile));
     while (*end != '\0') {
         if (cwd->type != DIRECTORY) {
             printk("[kernel] not a directory");
@@ -79,6 +75,7 @@ i64 getfile(FSFile *cwd, const char *path, FSFile *fileout) {
         fs_file_read(cwd, 0, entries, cwd->size);
         u64 dir_size = cwd->size;
         bool found = false;
+
         for (int i = 0; i < dir_size / sizeof(DirEntry); i++) {
             if (strlen(entries[i].name) == name_size && strncmp(ptr, entries[i].name, name_size) == 0) {
 
@@ -92,6 +89,31 @@ i64 getfile(FSFile *cwd, const char *path, FSFile *fileout) {
 
             }
         }
+        if (cwd->inum == cwd->fs->dev.inum) {
+            /// TODO: this is a temporary fix. When filesystem is not readonly anymore, mount devices to correspondent files.
+            // if it is device, just return this.
+            if (strcmp(ptr, "framebuffer") == 0) {
+                kfree(fileout, sizeof(FSFile));
+                memcpy(out, &gpu_device, sizeof(File));
+                return 0;
+            } else if (strcmp(ptr, "stdin") == 0) {
+                kfree(fileout, sizeof(FSFile));
+                memcpy(out, &stdin, sizeof(File));
+                return 0;
+            } else if (strcmp(ptr, "stdout") == 0) {
+                kfree(fileout, sizeof(FSFile));
+                memcpy(out, &stdout, sizeof(File));
+                return 0;
+            } else if (strcmp(ptr, "stderr") == 0) {
+                kfree(fileout, sizeof(FSFile));
+                memcpy(out, &stdout, sizeof(File));
+                return 0;
+            } else if (strcmp(ptr, "vda") == 0) {
+                kfree(fileout, sizeof(FSFile));
+                memcpy(out, rootfs.device, sizeof(File));
+                return 0;
+            }
+        }
         kfree(entries, dir_size);
         if (!found) {
             printk("[kernel] cannot find item named ");
@@ -99,6 +121,7 @@ i64 getfile(FSFile *cwd, const char *path, FSFile *fileout) {
             printk(" in path ");
             printk(path);
             printk("\n");
+            kfree(fileout, sizeof(FSFile));
             return -1;
         }
         cwd = fileout;
@@ -107,5 +130,6 @@ i64 getfile(FSFile *cwd, const char *path, FSFile *fileout) {
         }
         ptr = end;
     }
+    wrap_fsfile(out, fileout);
     return 0;
 }

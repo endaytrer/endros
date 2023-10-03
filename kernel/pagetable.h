@@ -38,7 +38,7 @@ typedef struct {
 } PTReference_2;
 
 // dma stuff
-pfn_t dmalloc(vpn_t *out_vpn, u64 pages);
+pfn_t dmalloc(vpn_t *out_vpn, u64 pages, bool zeroing);
 void dmafree(pfn_t pfn, vpn_t vpn, u64 pages);
 
 // user page stuff

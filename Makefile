@@ -186,8 +186,7 @@ qemu: $(CONFIG) $(FSIMG) $(KERNEL_BIN)
 		-global virtio-mmio.force-legacy=false \
 		-drive file=$(FSIMG),if=none,format=raw,id=x0 \
 		-device virtio-blk-device,drive=x0 \
-		-device virtio-gpu-device \
-		-nographic
+		-device virtio-gpu-device
 
 gdb: $(KERNEL_ELF)
 	$(GDB) \

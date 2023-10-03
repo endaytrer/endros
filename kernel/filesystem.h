@@ -2,6 +2,7 @@
 #define _K_FILESYSTEM_H
 #include "block_device.h"
 #include "file.h"
+#include "drivers/virtio.h"
 
 #define BLOCK_SIZE          4096
 #define DEFAULT_INODES      4096
@@ -51,7 +52,7 @@ typedef struct filesystem_t {
     File *device;
     SuperBlock super;
     struct fs_file_t root;
-
+    struct fs_file_t dev; // pointer to /dev
     /// Inode bitmap offset, represented all in blocks. Use `ADDR(page, offset)` to get corresponding block.
     u64 inode_bitmap_offset; 
     u64 data_bitmap_offset;
@@ -59,8 +60,8 @@ typedef struct filesystem_t {
 } Filesystem;
 
 extern Filesystem rootfs;
-void init_filesystem(void);
+void init_filesystem(VirtIOHeader *blk_header);
 void create_filesystem(Filesystem *filesystem, File *dev);
 void ls(struct fs_file_t *dir);
-i64 getfile(FSFile *cwd, const char *path, FSFile *fileout);
+i64 getfile(FSFile *cwd, const char *path, File *out);
 #endif

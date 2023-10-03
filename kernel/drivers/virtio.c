@@ -62,7 +62,7 @@ void init_queue(VirtIOQueue *queue, VirtIOHeader *hdr, u16 idx, bool indirect, b
 
         // since we need TWO CONTIGUOUS PHYSICAL pages, we have to MANUALLY ALLOCATE by changing pbrk and pfn_start
         vpn_t dma_vpn;
-        pfn_t dma_pfn = dmalloc(&dma_vpn, 2);
+        pfn_t dma_pfn = dmalloc(&dma_vpn, 2, true);
 
         desc = (VirtQueueDesc *)PAGE_2_ADDR(dma_vpn);
         avail = (VirtQueueAvail *)ADDR(dma_vpn, sizeof(VirtQueueDesc) * VIRTIO_NUM_DESC);
@@ -89,10 +89,10 @@ void init_queue(VirtIOQueue *queue, VirtIOHeader *hdr, u16 idx, bool indirect, b
 
         // allocate flexible.
         vpn_t driver_to_device_vpn;
-        pfn_t driver_to_device_pfn = dmalloc(&driver_to_device_vpn, 1);
+        pfn_t driver_to_device_pfn = dmalloc(&driver_to_device_vpn, 1, true);
 
         vpn_t device_to_driver_vpn;
-        pfn_t device_to_driver_pfn = dmalloc(&device_to_driver_vpn, 1);
+        pfn_t device_to_driver_pfn = dmalloc(&device_to_driver_vpn, 1, true);
 
         desc = (VirtQueueDesc *)PAGE_2_ADDR(driver_to_device_vpn);
         avail = (VirtQueueAvail *)ADDR(driver_to_device_vpn, sizeof(VirtQueueDesc) * VIRTIO_NUM_DESC);
@@ -149,7 +149,7 @@ i32 add_queue(VirtIOQueue *queue, pfn_t inputs[], u32 input_lengths[], u8 num_in
             panic("[kernel.drivers.virtio] trying to insert more than pagesize blocks\n");
         }
         vpn_t indirect_vpn;
-        pfn_t indirect_pfn = dmalloc(&indirect_vpn, 1);
+        pfn_t indirect_pfn = dmalloc(&indirect_vpn, 1, false);
         VirtQueueDesc *indirect_list = (VirtQueueDesc *)PAGE_2_ADDR(indirect_vpn);
         for (u16 i = 0; i < num_inputs; i++) {
             indirect_list[i].addr = (u64)PAGE_2_ADDR(inputs[i]);
@@ -185,24 +185,28 @@ i32 add_queue(VirtIOQueue *queue, pfn_t inputs[], u32 input_lengths[], u8 num_in
         queue->num_used++;
     } else {
         // add direct
-        u16 last = queue->free_head;
+        u16 last;
         for (u16 i = 0; i < num_inputs; i++) {
             VirtQueueDesc *desc = queue->desc_shadow + queue->free_head;
-            desc->addr = (u64)PAGE_2_ADDR(inputs[i]);
+            desc->addr = inputs[i];
             desc->len = input_lengths[i];
             desc->flags = VRING_DESC_F_NEXT;
             last = queue->free_head;
             queue->free_head = desc->next;
             queue->desc[last] = queue->desc_shadow[last];
+            queue->num_used++;
         }
         for (u16 i = 0; i < num_outputs; i++) {
             VirtQueueDesc *desc = queue->desc_shadow + queue->free_head;
-            desc->addr = (u64)PAGE_2_ADDR(outputs[i]);
+            desc->addr = outputs[i];
             desc->len = output_lengths[i];
-            desc->flags = VRING_DESC_F_NEXT | VRING_DESC_F_WRITE;
+            desc->flags = VRING_DESC_F_WRITE;
+            if (i != num_outputs - 1)
+                desc->flags |= VRING_DESC_F_NEXT;
             last = queue->free_head;
             queue->free_head = desc->next;
             queue->desc[last] = queue->desc_shadow[last];
+            queue->num_used++;
         }
     }
     u16 avail_slot = queue->avail_idx & (VIRTIO_NUM_DESC - 1); // using & to warp
@@ -215,6 +219,34 @@ i32 add_queue(VirtIOQueue *queue, pfn_t inputs[], u32 input_lengths[], u8 num_in
     __sync_synchronize();
     return head;
 }
+
+i64 queue_add_notify_pop(VirtIOQueue *queue, VirtIOHeader *hdr, pfn_t inputs[], u32 input_lengths[], u8 num_inputs, pfn_t outputs[], u32 output_lengths[], u8 num_outputs) {
+    i32 token = add_queue(queue, inputs, input_lengths, num_inputs, outputs, output_lengths, num_outputs);
+    if (token < 0) {
+        printk("[kernel.drivers.virtio] add queue failed\n");
+        return -1;
+    }
+    // write notify register to notify device
+    if (should_notify(queue))
+        hdr->queue_notify = queue->queue_idx;
+    while (1) {
+        __sync_synchronize();
+        if (queue->last_used_idx != queue->used->idx)
+            break;
+    }
+    u16 last_used_slot = queue->last_used_idx & (VIRTIO_NUM_DESC - 1);
+    u16 index = (u16)queue->used->ring[last_used_slot].id;
+    u32 len = queue->used->ring[last_used_slot].len;
+
+    if (index != token) {
+        printk("[kernel.drivers.virtio] used token error\n");
+        return -1;
+    }
+    recycle_descriptors(queue, index);
+    queue->last_used_idx++;
+    return len;
+}
+
 void recycle_descriptors(VirtIOQueue *queue, u16 head) {
     u16 original_free_head = queue->free_head;
     queue->free_head = head;

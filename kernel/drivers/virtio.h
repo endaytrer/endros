@@ -38,40 +38,6 @@
 
 /// features
 
-/// Device supports request barriers. (legacy)
-#define VIRTIO_FEATURE_BARRIER        (1 << 0)
-/// Maximum size of any single segment is in `size_max`.
-#define VIRTIO_FEATURE_SIZE_MAX       (1 << 1)
-/// Maximum number of segments in a request is in `seg_max`.
-#define VIRTIO_FEATURE_SEG_MAX        (1 << 2)
-/// Disk-style geometry specified in geometry.
-#define VIRTIO_FEATURE_GEOMETRY       (1 << 4)
-/// Device is read-only.
-#define VIRTIO_FEATURE_RO             (1 << 5)
-/// Block size of disk is in `blk_size`.
-#define VIRTIO_FEATURE_BLK_SIZE       (1 << 6)
-/// Device supports scsi packet commands. (legacy)
-#define VIRTIO_FEATURE_SCSI           (1 << 7)
-/// Cache flush command support.
-#define VIRTIO_FEATURE_FLUSH          (1 << 9)
-/// Device exports information on optimal I/O alignment.
-#define VIRTIO_FEATURE_TOPOLOGY       (1 << 10)
-/// Device can toggle its cache between writeback and writethrough modes.
-#define VIRTIO_FEATURE_CONFIG_WCE     (1 << 11)
-/// Device supports multiqueue.
-#define VIRTIO_FEATURE_MQ             (1 << 12)
-/// Device can support discard command, maximum discard sectors size in
-/// `max_discard_sectors` and maximum discard segment number in
-/// `max_discard_seg`.
-#define VIRTIO_FEATURE_DISCARD        (1 << 13)
-/// Device can support write zeroes command, maximum write zeroes sectors
-/// size in `max_write_zeroes_sectors` and maximum write zeroes segment
-/// number in `max_write_zeroes_seg`.
-#define VIRTIO_FEATURE_WRITE_ZEROES   (1 << 14)
-/// Device supports providing storage lifetime information.
-#define VIRTIO_FEATURE_LIFETIME       (1 << 15)
-/// Device can support the secure erase command.
-#define VIRTIO_FEATURE_SECURE_ERASE   (1 << 16)
 // device independent
 // legacy
 #define VIRTIO_FEATURE_NOTIFY_ON_EMPTY        (1 << 24)
@@ -311,6 +277,7 @@ i32 add_queue(VirtIOQueue *queue,
               u32 output_lengths[],
               u8 num_outputs);
 
+i64 queue_add_notify_pop(VirtIOQueue *queue, VirtIOHeader *hdr, pfn_t inputs[], u32 input_lengths[], u8 num_inputs, pfn_t outputs[], u32 output_lengths[], u8 num_outputs);
 void recycle_descriptors(VirtIOQueue *queue, u16 head);
 
 bool should_notify(VirtIOQueue *queue);

@@ -62,7 +62,13 @@ i64 sys_chdir(const char *filename) {
     PCB *proc = cpus[cpuid].running;
     char *kernel_buf = kalloc(2 * PAGESIZE);
     translate_2_pages(proc->ptref_base, kernel_buf, filename);
-    i64 res = getfile(&proc->cwd_file, kernel_buf, &proc->cwd_file);
+    File file;
+    i64 res = getfile(&proc->cwd_file, kernel_buf, &file);
+    if (file.type != DIRECTORY) {
+        return -1;
+    }
+    memcpy(&proc->cwd_file, file.super, sizeof(FSFile));
+    kfree(file.super, sizeof(FSFile));
     kfree(kernel_buf, 2 * PAGESIZE);
     return res;
 }
@@ -76,10 +82,10 @@ i64 sys_openat(i32 dfd, const char *filename, int flags, int mode) {
         cwd = &proc->cwd_file;
     }
 
-    FSFile *target = kalloc(sizeof(FSFile));
+    File *file = kalloc(sizeof(File));
     char *kernel_filename = kalloc(2 * PAGESIZE);
     translate_2_pages(proc->ptref_base, kernel_filename, filename);
-    i64 res = getfile(cwd, kernel_filename, target);
+    i64 res = getfile(cwd, kernel_filename, file);
     kfree(kernel_filename, 2 * PAGESIZE);
     if (res < 0) {
         return -1;
@@ -89,8 +95,6 @@ i64 sys_openat(i32 dfd, const char *filename, int flags, int mode) {
     for (fd = 0; fd < NUM_FILES; fd++) {
         if (proc->opened_files[fd].file)
             continue;
-        File *file = kalloc(sizeof(File));
-        wrap_fsfile(file, target);
         proc->opened_files[fd].file = file;
         proc->opened_files[fd].open_flags = flags;
         proc->opened_files[fd].seek = 0;
@@ -107,6 +111,8 @@ i64 sys_close(u32 fd) {
     }
     if (proc->opened_files[fd].file->type != DEVICE) {
         kfree(proc->opened_files[fd].file->super, sizeof(FSFile));
+        kfree(proc->opened_files[fd].file, sizeof(File));
+    } else {
         kfree(proc->opened_files[fd].file, sizeof(File));
     }
     proc->opened_files[fd].file = NULL;

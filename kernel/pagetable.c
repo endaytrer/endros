@@ -48,7 +48,7 @@ pfn_t palloc() {
 
 FreeNode *ptfreelist = NULL;
 
-pfn_t dmalloc(vpn_t *out_vpn, u64 pages) {
+pfn_t dmalloc(vpn_t *out_vpn, u64 pages, bool zeroing) {
     // dmalloc/dmafree and uptalloc/uptfree also shares ptfreelist freelist:
     // They are all sizeable, physically allocatable and contiguous.
     FreeNode *p = ptfreelist, *prev = NULL;
@@ -63,7 +63,8 @@ pfn_t dmalloc(vpn_t *out_vpn, u64 pages) {
             else
                 ptfreelist = newp;
             pfn_t pfn = p->pfn;
-            memset(p, 0, pages * PAGESIZE);
+            if (zeroing)
+                memset(p, 0, pages * PAGESIZE);
             *out_vpn = ADDR_2_PAGE(p);
             return pfn;
 
@@ -73,7 +74,8 @@ pfn_t dmalloc(vpn_t *out_vpn, u64 pages) {
             else
                 ptfreelist = p->next;
             pfn_t pfn = p->pfn;
-            memset(p, 0, pages * PAGESIZE);
+            if (zeroing)
+                memset(p, 0, pages * PAGESIZE);
             *out_vpn = ADDR_2_PAGE(p);
             return pfn;
         }
@@ -94,9 +96,8 @@ pfn_t dmalloc(vpn_t *out_vpn, u64 pages) {
     for (u64 i = 0; i < pages; i++) {
         ptmap(vpn + i, pfn + i, PTE_VALID | PTE_READ | PTE_WRITE);
     }
-    memset(ans, 0, pages * PAGESIZE);
-
-
+    if (zeroing)
+        memset(ans, 0, pages * PAGESIZE);
     return pfn;
 }
 
@@ -166,6 +167,7 @@ void pfree(pfn_t pfn, vpn_t vpn) {
 void *kalloc(u64 size) {
     // Although not recommended, the caller may use more than size.
     // so when freeing, always zero (pages * PAGESIZE) bytes.
+    if (size == 0) return NULL;
     u64 pages = ADDR_2_PAGEUP(size);
 
     FreeNode *p = freelist, *prev = NULL;
@@ -202,6 +204,7 @@ void *kalloc(u64 size) {
 }
 
 void kfree(void *ptr, u64 size) {
+    if (size == 0) return;
     u64 pages = ADDR_2_PAGEUP(size);
     // lazy approach, leave fragments
     FreeNode *free_head = (FreeNode *)ptr;
@@ -241,7 +244,8 @@ void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t us
 
     if (!ptref2->ptable) {
         vpn_t temp_vpn;
-        pfn_t temp_pfn = dmalloc(&temp_vpn, 1);
+        // it need to be zeroed because may cause pagetable errors
+        pfn_t temp_pfn = dmalloc(&temp_vpn, 1, true);
         PTReference_1 *next_ptref = kalloc(2 * PAGESIZE);
 
         *pte = PTE(temp_pfn, PTE_VALID);
@@ -254,7 +258,7 @@ void uptmap(vpn_t uptbase, PTReference_2 *ptref_base, vpn_t kernel_vpn, vpn_t us
 
     if (!ptref1->ptable) {
         vpn_t temp_vpn;
-        pfn_t temp_pfn = dmalloc(&temp_vpn, 1);
+        pfn_t temp_pfn = dmalloc(&temp_vpn, 1, true);
         vpn_t *next_ptref = kalloc(PAGESIZE);
 
         *pte = PTE(temp_pfn, PTE_VALID);
@@ -339,7 +343,7 @@ void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_p
 
         // dst pagetable is empty, so always create pagetable in this step;
         vpn_t kernel_vpn_2;
-        pfn_t pfn_2 = dmalloc(&kernel_vpn_2, 1);
+        pfn_t pfn_2 = dmalloc(&kernel_vpn_2, 1, true);
         dst_ptref2->pt_ref = kalloc(PAGESIZE * 2);
         dst_ptref2->ptable = (pte_t *)PAGE_2_ADDR(kernel_vpn_2);
         *dst_pte2 = PTE(pfn_2, PTE_VALID);
@@ -353,7 +357,7 @@ void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_p
 
             // dst pagetable is empty, so always create pagetable in this step;
             vpn_t kernel_vpn_1;
-            pfn_t pfn_1 = dmalloc(&kernel_vpn_1, 1);
+            pfn_t pfn_1 = dmalloc(&kernel_vpn_1, 1, true);
             dst_ptref1->pt_ref = kalloc(PAGESIZE);
             dst_ptref1->ptable = (pte_t *)PAGE_2_ADDR(kernel_vpn_1);
             *dst_pte1 = PTE(pfn_1, PTE_VALID);
@@ -368,7 +372,8 @@ void ptref_copy(pfn_t dst_ptbase_pfn, vpn_t dst_ptbase_vpn, PTReference_2 *dst_p
 
                 // creating page and corresponding level-0 page entry;
                 vpn_t kernel_vpn;
-                pfn_t pfn = dmalloc(&kernel_vpn, 1);
+                // dont need to zero because it is then mem-copied.
+                pfn_t pfn = dmalloc(&kernel_vpn, 1, false);
                 *dst_pte0 = PTE(pfn, GET_FLAGS(src_pte0));
                 *dst_ptref0 = kernel_vpn;
 

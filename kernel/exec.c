@@ -20,7 +20,7 @@ i64 sys_exec(const char *path) {
     // page 0;
     translate_2_pages(proc->ptref_base, kernel_path, path);
 
-    FSFile program;
+    File program;
     if (getfile(&proc->cwd_file, kernel_path, &program) < 0) {
         printk("[kernel] Unable to find file\n");
         return -1;
@@ -29,9 +29,7 @@ i64 sys_exec(const char *path) {
         printk("[kernel] Program not executable\n");
         return -1;
     }
-    File wrapper;
-    wrap_fsfile(&wrapper, &program);
     kfree(kernel_path, 2 * PAGESIZE);
     free_process_space(cpus[cpuid].running);
-    return load_process(cpus[cpuid].running, &wrapper);
+    return load_process(cpus[cpuid].running, &program);
 }
