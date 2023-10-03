@@ -14,12 +14,12 @@
 #define SYS_GET_TIME 169
 #define SYS_SBRK     214
 #define SYS_FORK     220
-#define SYS_EXEC     221
+#define SYS_EXECVE   221
 #define SYS_WAITPID  260
 
-#define SYSCALL static inline __attribute__((always_inline)) long
+#define SYSCALL static inline __attribute__((always_inline)) i64
 
-SYSCALL syscall(u64 id, u64 arg0, u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5, u64 arg6) {
+i64 syscall(u64 id, u64 arg0, u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5, u64 arg6) {
     register u64 x10 asm("x10") = arg0;
     register u64 x11 asm("x11") = arg1;
     register u64 x12 asm("x12") = arg2;
@@ -69,8 +69,8 @@ SYSCALL sys_sbrk(i64 size) {
 SYSCALL sys_fork(void) {
     return syscall(SYS_FORK, 0, 0, 0, 0, 0, 0, 0);
 }
-SYSCALL sys_exec(const char *path) {
-    return syscall(SYS_EXEC, (u64)path, 0, 0, 0, 0, 0, 0);
+SYSCALL sys_execve(const char *path, const char *const *argv, const char *const *envp) {
+    return syscall(SYS_EXECVE, (u64)path, (u64)argv, (u64)envp, 0, 0, 0, 0);
 }
 SYSCALL sys_waitpid(int pid) {
     return syscall(SYS_WAITPID, pid, 0, 0, 0, 0, 0, 0);

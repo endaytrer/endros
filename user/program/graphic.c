@@ -11,11 +11,11 @@
 #define BITMAP_WIDTH (FONT_WIDTH * BITMAP_COLS)
 
 #define RGBA(r, g, b, a) ((((a) & 255) << 24) | (((r) & 255) << 16) | (((g) & 255) << 8) | ((b) & 255))
-#define BG_COLOR RGBA(0, 0, 0, 255)
+#define BG_COLOR RGBA(0, 0, 0, 0)
 
 
 
-void _start() {
+int main(int argc, const char *argv[]) {
     
     int fd_bitmap = open("/font.bitmap", O_RDONLY, 0644);
     int fd_fb = open("/dev/framebuffer", O_RDWR, 0666);
@@ -61,9 +61,8 @@ void _start() {
         }
         read(fd_fb, NULL, 0);
         FONT_COLOR++;
-        sleep(1000000);
     }
     close(fd_bitmap);
     close(fd_fb);
-    exit(0);
+    return 0;
 }

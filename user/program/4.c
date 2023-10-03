@@ -1,10 +1,10 @@
 #include <lib.h>
 
-void _start(void) {
+int main(int argc, const char *argv[]) {
     // unknown instruction
     asm volatile(
         ".quad 0x0"
     );
     write(STDOUT, "Hello 4!\n", 10);
-    exit(0);
+    return 0;
 }

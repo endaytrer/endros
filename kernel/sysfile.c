@@ -36,20 +36,30 @@ void translate_buffer(PTReference_2 *ptref_base, void *kernel_buf, void *user_bu
 /// Kernel buffer should be allocated by kalloc(2 * PAGESIZE)
 /// \param kernel_buf should be allocated by `kalloc(2 * PAGESIZE)`
 /// \param user_buf Null terminated string. Max length is one page.
-void translate_2_pages(const PTReference_2 *ptref_base, void *kernel_buf, const void *user_buf) {
+void translate_2_pages(const PTReference_2 *ptref_base, void *kernel_buf, const void *user_buf, int unit_size) {
     u64 offset = OFFSET(user_buf);
     vpn_t user_vpn = ADDR_2_PAGE(user_buf);
     vpn_t kernel_vpn = walkupt(ptref_base, user_vpn);
     bool within_page = false;
+    int consecutive_zeros = 0;
+    int count = 0;
     while (!within_page) {
         for (char *ptr = (char *)ADDR(kernel_vpn, offset); ptr != (char *)PAGE_2_ADDR(kernel_vpn + 1);) {
+            // if *ptr is at the beginning of a word and equals \0, start to count
+            // if *ptr is '\0'
             *(char *)kernel_buf = *ptr;
-            if (*ptr == '\0') {
+            if (*ptr == '\0' && (count % unit_size == 0 || consecutive_zeros != 0))
+                consecutive_zeros++;
+            else // *ptr != '\0' || (count % unit_size != 0 && consecutive_zeros == 0)
+                consecutive_zeros = 0;
+            
+            if (consecutive_zeros == unit_size) {
                 within_page = true;
                 break;
             }
             kernel_buf = (void *)((u64)kernel_buf + 1);
             ptr++;
+            count++;
         }
         user_vpn += 1;
         kernel_vpn = walkupt(ptref_base, user_vpn);
@@ -61,15 +71,17 @@ i64 sys_chdir(const char *filename) {
     int cpuid = 0;
     PCB *proc = cpus[cpuid].running;
     char *kernel_buf = kalloc(2 * PAGESIZE);
-    translate_2_pages(proc->ptref_base, kernel_buf, filename);
+    translate_2_pages(proc->ptref_base, kernel_buf, filename, 1);
     File file;
     i64 res = getfile(&proc->cwd_file, kernel_buf, &file);
+    kfree(kernel_buf, 2 * PAGESIZE);
     if (file.type != DIRECTORY) {
+        if (file.type != DEVICE)
+            kfree(file.super, sizeof(FSFile));
         return -1;
     }
     memcpy(&proc->cwd_file, file.super, sizeof(FSFile));
     kfree(file.super, sizeof(FSFile));
-    kfree(kernel_buf, 2 * PAGESIZE);
     return res;
 }
 i64 sys_openat(i32 dfd, const char *filename, int flags, int mode) {
@@ -84,10 +96,23 @@ i64 sys_openat(i32 dfd, const char *filename, int flags, int mode) {
 
     File *file = kalloc(sizeof(File));
     char *kernel_filename = kalloc(2 * PAGESIZE);
-    translate_2_pages(proc->ptref_base, kernel_filename, filename);
+    translate_2_pages(proc->ptref_base, kernel_filename, filename, 1);
     i64 res = getfile(cwd, kernel_filename, file);
     kfree(kernel_filename, 2 * PAGESIZE);
+    if (file->type == DIRECTORY && !(flags & O_DIRECTORY)) {
+
+        kfree(file->super, sizeof(FSFile));
+        kfree(file, sizeof(File));
+        return -1;
+    }
+    if (file->type != DIRECTORY && (flags & O_DIRECTORY)) {
+        if (file->type != DEVICE)
+            kfree(file->super, sizeof(FSFile));
+        kfree(file, sizeof(File));
+        return -1;
+    }
     if (res < 0) {
+        kfree(file, sizeof(File));
         return -1;
     }
     // find an empty slot for the fd
@@ -100,6 +125,9 @@ i64 sys_openat(i32 dfd, const char *filename, int flags, int mode) {
         proc->opened_files[fd].seek = 0;
         return fd;
     }
+    if (file->type != DEVICE)
+        kfree(file->super, sizeof(FSFile));
+    kfree(file, sizeof(File));
     return -1;
 }
 
@@ -170,6 +198,7 @@ i64 sys_read(u32 fd, char *buf, u64 size) {
     // char *kernel_ptr = (char *)ADDR(kernel_vpn, OFFSET(buf));
     int read_res;
     if ((read_res = wrapped_read(file_desc->file, file_desc->seek, kernel_ptr, size)) < 0) {
+        kfree(kernel_ptr, size);
         return read_res;
     }
 

@@ -1,6 +1,6 @@
 #include <lib.h>
 
-void _start(void) {
+int main(int argc, const char *argv[]) {
     // write and exit
     write(STDOUT, "Hello 1!\n", 10);
 
@@ -23,5 +23,5 @@ void _start(void) {
     }
     waitpid(pid);
     write(STDOUT, "Hello end!\n", 10);
-    exit(0);
+    return 0;
 }

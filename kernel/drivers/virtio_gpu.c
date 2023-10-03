@@ -204,7 +204,6 @@ i64 flush(VirtIOGPU *gpu) {
     if (resource_flush(gpu, gpu->x, gpu->y, gpu->width, gpu->height, RESOURCE_ID_FB) < 0)
         return -1;
     return 0;
-
 }
 i64 fb_read(VirtIOGPU *gpu, u64 offset, void *data, u64 len) {
     /// Framebuffer is write only. Reading it is equivalent to flushing it.

@@ -1,6 +1,6 @@
 #include <lib.h>
 
-void _start() {
+int main(int argc, const char *argv[]) {
     char str[] = "Hello world!\n";
     write(STDOUT, str, sizeof(str));
     pid_t pid = fork();
@@ -15,5 +15,5 @@ void _start() {
         waitpid(pid);
         write(STDOUT, "Child has exited\n", 18);
     }
-    exit(0);
+    return 0;
 }

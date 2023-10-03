@@ -1,7 +1,7 @@
 #include <lib.h>
 #include <fcntl.h>
 
-void _start() {
+int main() {
     write(STDOUT, "sh> ", 5);
     char *buffer = sbrk(4096);
     char *ptr = buffer;
@@ -29,7 +29,7 @@ void _start() {
             }
 
             if (strcmp(argv[0], "exit") == 0) {
-                exit(0);
+                return 0;
             } else if (strcmp(argv[0], "cd") == 0) {
                 if (argc != 2) {
                     write(STDERR, "usage: cd [DIRECTORY]\n", 23);
@@ -44,8 +44,9 @@ void _start() {
                 if (pid > 0) {
                     waitpid(pid);
                 } else {
-                    exec(argv[0]);
-                    exit(-1);
+                    argv[argc] = NULL;
+                    execv(argv[0], (const char *const *)argv);
+                    return -1;
                 }
             }
             memset(buffer, 0, 4096);

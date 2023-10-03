@@ -14,7 +14,7 @@
 #define SYS_GET_TIME 169
 #define SYS_SBRK     214
 #define SYS_FORK     220
-#define SYS_EXEC     221
+#define SYS_EXECVE   221
 #define SYS_WAITPID  260
 
 typedef int pid_t;
@@ -23,9 +23,9 @@ typedef struct {
     u64 usec;
 } TimeVal;
 
+void translate_buffer(PTReference_2 *ptref_base, void *kernel_buf, void *user_buf, u64 size, bool write);
 // for translating path argument. Read only
-void translate_2_pages(const PTReference_2 *ptref_base, void *kernel_buf, const void *user_buf);
-
+void translate_2_pages(const PTReference_2 *ptref_base, void *kernel_buf, const void *user_buf, int unit_size);
 i64 sys_chdir(const char *filename);
 i64 sys_openat(i32 dfd, const char *filename, int flags, int mode);
 i64 sys_close(u32 fd);
@@ -37,7 +37,7 @@ i64 sys_yield(void);
 i64 sys_get_time(TimeVal *ts, u64 _tz);
 i64 sys_sbrk(i64 size);
 i64 sys_fork(void);
-i64 sys_exec(const char *path);
+i64 sys_execve(const char *path, const char *const *argv, const char *const *envp);
 i64 sys_waitpid(pid_t pid);
 
 

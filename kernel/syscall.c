@@ -13,7 +13,7 @@ static void(*syscall_table[])() = {
     [SYS_GET_TIME] = (void (*)())sys_get_time,
     [SYS_SBRK]     = (void (*)())sys_sbrk,
     [SYS_FORK]     = (void (*)())sys_fork,
-    [SYS_EXEC]     = (void (*)())sys_exec,
+    [SYS_EXECVE]   = (void (*)())sys_execve,
     [SYS_WAITPID]  = (void (*)())sys_waitpid,
 };
 

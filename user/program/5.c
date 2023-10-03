@@ -7,8 +7,8 @@ void fibonacci(int k) {
     fibonacci(k - 1);
 }
 
-void _start(void) {
+int main(int argc, const char *argv[]) {
     fibonacci(100);
     write(STDOUT, "\nHello 5!\n", 10);
-    exit(0);
+    return 0;
 }

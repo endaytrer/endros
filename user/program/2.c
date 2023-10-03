@@ -1,7 +1,7 @@
 #include <lib.h>
 
-void _start(void) {
+int main(int argc, const char *argv[]) {
     // unsupported syscall
     write(STDERR, "Hello 2!\n", 10);
-    exit(0);
+    return 0;
 }

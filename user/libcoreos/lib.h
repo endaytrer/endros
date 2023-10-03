@@ -21,6 +21,7 @@ void sleep(u64 time_us);
 void *sbrk(i64 size);
 pid_t fork(void);
 i64 exec(const char *path);
+i64 execv(const char *path, const char *const *argv);
 i64 waitpid(pid_t pid);
 i64 open(const char *path, int flags, int mode);
 i64 close(int fd);

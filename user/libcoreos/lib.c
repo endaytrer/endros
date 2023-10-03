@@ -30,7 +30,13 @@ pid_t fork(void) {
 }
 
 i64 exec(const char *path) {
-    return sys_exec(path);
+    const char *const argv = NULL;
+    const char *const envp = NULL;
+    return sys_execve(path, &argv, &envp);
+}
+i64 execv(const char *path, const char *const *argv) {
+    const char *const envp = NULL;
+    return sys_execve(path, argv, &envp);
 }
 
 i64 waitpid(pid_t pid) {
@@ -73,4 +79,9 @@ void sleep(u64 time_us) {
         yield();
         sys_get_time(&time, 0);
     } while (time.usec - start < time_us);
+}
+extern int main(int, const char *const *, const char *const *);
+
+void _start(int argc, const char *const *argv, const char *const *envp) {
+    exit(main(argc, argv, envp));
 }
