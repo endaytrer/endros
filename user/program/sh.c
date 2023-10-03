@@ -34,7 +34,8 @@ int main() {
                 if (argc != 2) {
                     write(STDERR, "usage: cd [DIRECTORY]\n", 23);
                 } else {
-                    chdir(argv[1]);
+                    if (chdir(argv[1]) < 0)
+                        write(STDERR, "cd failed\n", 11);
                 }
             } else {
                 int pid = fork();

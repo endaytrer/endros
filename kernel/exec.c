@@ -67,18 +67,19 @@ i64 sys_execve(const char *path, const char *const *argv, const char *const *env
 
     File program;
     if (getfile(&proc->cwd_file, kernel_path, &program) < 0) {
+        kfree(kernel_path, 2 * PAGESIZE);
         printk("[kernel] Unable to find file\n");
         return -1;
     }
+    kfree(kernel_path, 2 * PAGESIZE);
     if (program.type == DIRECTORY || (program.permission & PERMISSION_X) == 0 || (program.permission & PERMISSION_R) == 0) {
         printk("[kernel] Program not executable\n");
-        return -1;
+        goto free_args;
     }
-    kfree(kernel_path, 2 * PAGESIZE);
     free_process_space(proc);
     if (load_process(proc, &program) < 0) {
         printk("[kernel] load process failed");
-        return -1;
+        goto free_args;
     }
     u64 total_size = (argc + envc + 2) * sizeof(char *) + argsize;
     // make it 16-byte aligned
@@ -135,4 +136,14 @@ i64 sys_execve(const char *path, const char *const *argv, const char *const *env
     }
     kfree(kernel_envp, 2 * PAGESIZE);
     return argc;
+free_args:
+    for (int i = 0; i < argc; i++) {
+        kfree(kernel_argv[i], 2 * PAGESIZE);
+    }
+    kfree(kernel_argv, 2 * PAGESIZE);
+    for (int i = 0; i < envc; i++) {
+        kfree(kernel_envp[i], 2 * PAGESIZE);
+    }
+    kfree(kernel_envp, 2 * PAGESIZE);
+    return -1;
 }

@@ -73,7 +73,10 @@ i64 sys_chdir(const char *filename) {
     char *kernel_buf = kalloc(2 * PAGESIZE);
     translate_2_pages(proc->ptref_base, kernel_buf, filename, 1);
     File file;
-    i64 res = getfile(&proc->cwd_file, kernel_buf, &file);
+    if (getfile(&proc->cwd_file, kernel_buf, &file) < 0) {
+        kfree(kernel_buf, 2 * PAGESIZE);
+        return -1;
+    }
     kfree(kernel_buf, 2 * PAGESIZE);
     if (file.type != DIRECTORY) {
         if (file.type != DEVICE)
@@ -82,7 +85,7 @@ i64 sys_chdir(const char *filename) {
     }
     memcpy(&proc->cwd_file, file.super, sizeof(FSFile));
     kfree(file.super, sizeof(FSFile));
-    return res;
+    return 0;
 }
 i64 sys_openat(i32 dfd, const char *filename, int flags, int mode) {
     int cpuid = 0;

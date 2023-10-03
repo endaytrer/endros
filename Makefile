@@ -171,7 +171,7 @@ $(FSIMG): $(USER_HDRS) $(USER_ELFS) $(USER_LIB_STATIC) $(CONFIG) $(MKFS)
 	$(MKFS) -o $@ $(ROOTFS) -s $(shell $(GENHDRS) -g FSSIZE -c $(CONFIG)) -i $(shell $(GENHDRS) -g INODES -c $(CONFIG))
 
 $(BIN_DST)/%: $(USER_BIN)/%.o $(USER_LIB_STATIC) | $(BIN_DST)
-	$(LD) $(LDFLAGS) -T $(USER_LINKER_SCRIPT) -o $@ $^
+	$(LD) $(LDFLAGS)  -o $@ $^
 
 $(USER_BIN)/%.o: $(USER_BIN)/%.c $(USER_HDRS)
 	$(CC) $(CFLAGS) -I$(INCLUDE_DST) -c -o $@ $<

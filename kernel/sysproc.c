@@ -50,13 +50,6 @@ i64 sys_exit(i32 xstate) {
     int cpuid = 0;
     PCB *proc = cpus[cpuid].running;
 
-    char buf[16];
-    printk("[kernel] Process ");
-    printk(itoa(proc->pid, buf, 10));
-    printk(" exited with code ");
-    printk(itoa(xstate, buf, 10));
-    printk("\n");
-
     // if it is waited by parent, reschedule parent and set to terminated
     if (proc->flags & FLAGS_WAITED) {
         proc->parent->status = READY;
