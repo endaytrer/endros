@@ -34,8 +34,8 @@ i64 load_process(PCB *process, File *program) {
     uptmap(ptbase_vpn, ptref_base, 0, ADDR_2_PAGE(TRAMPOLINE), ADDR_2_PAGE(strampoline), PTE_VALID | PTE_READ | PTE_EXECUTE);
 
     // since it is easier to deal with continuous virtual addresses, use kalloc.
-    void *buf = kalloc(program->size);
-    wrapped_read(program, 0, buf, program->size);
+    void *buf = kalloc(*program->size);
+    wrapped_read(program, 0, buf, *program->size);
     Elf64_Ehdr *elf_header = (Elf64_Ehdr *)buf;
     vpn_t max_vpn = 0;
     for (int i = 0; i < elf_header->e_phnum; i++) {
@@ -118,7 +118,6 @@ void run(int cpuid, PCB *process) {
 }
 
 void init_scheduler(void) {
-    extern void _num_app(void);
     PCB *process = NULL;
     int cpuid = 0;
     for (u64 i = 0; i < NUM_PROCS; i++) {
@@ -145,23 +144,26 @@ void init_scheduler(void) {
     // set opened files to be [STDIN, STDOUT, STDERR]
     memset(process->opened_files, 0, sizeof(process->opened_files));
     process->opened_files[STDIN] = (FileDescriptor) {
-            .file = &stdin,
+            .occupied = true,
+            .file = stdin,
             .open_flags = O_RDONLY,
             .seek = 0
     };
     process->opened_files[STDOUT] = (FileDescriptor) {
-            .file = &stdout,
+            .occupied = true,
+            .file = stdout,
             .open_flags = O_WRONLY,
             .seek = 0
     };
     process->opened_files[STDERR] = (FileDescriptor) {
-            .file = &stderr,
+            .occupied = true,
+            .file = stderr,
             .open_flags = O_WRONLY,
             .seek = 0
     };
 
     File program;
-    getfile(&rootfs.root, INIT_PROGRAM, &program);
+    getfile(&rootfs.root, INIT_PROGRAM, &program, false);
     if (load_process(process, &program) < 0) {
         panic("[kernel] cannot load process\n");
     }

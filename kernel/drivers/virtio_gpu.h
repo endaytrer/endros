@@ -47,6 +47,7 @@ struct dma_t {
 
 typedef struct {
     VirtIOHeader *hdr;
+    u64 size;
     u32 x;
     u32 y;
     u32 width;

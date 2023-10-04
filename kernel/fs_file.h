@@ -17,6 +17,7 @@ i64 fs_file_sync(const FSFile *file);
 
 i64 fs_file_read(FSFile *file, u64 offset, void *buf, u64 size);
 i64 fs_file_write(FSFile *file, u64 offset, const void *buf, u64 size);
+i64 fs_file_truncate(FSFile *file, u64 newsize);
 
 void wrap_fsfile(File *out, FSFile *in);
   

@@ -20,6 +20,7 @@ i64 stdout_write(void *self, u64 offset, const void *buf, u64 size) {
     }
     return 0;
 }
+static const u64 std_size = ~((u64)0);
 
 File stdin = {
     .permission = PERMISSION_R,
@@ -27,7 +28,7 @@ File stdin = {
     .super = NULL,
     .read = stdin_read,
     .write = NULL,
-    .size = ~((u64)0),
+    .size = (u64 *)&std_size,
 };
 
 File stdout = {
@@ -36,7 +37,7 @@ File stdout = {
     .super = NULL,
     .read = NULL,
     .write = stdout_write,
-    .size = ~((u64)0),
+    .size = (u64 *)&std_size,
 };
 
 File stderr = {
@@ -44,5 +45,5 @@ File stderr = {
     .type = DEVICE,
     .read = NULL,
     .write = stdout_write,
-    .size = ~((u64)0),
+    .size = (u64 *)&std_size,
 };

@@ -73,7 +73,7 @@ i64 sys_chdir(const char *filename) {
     char *kernel_buf = kalloc(2 * PAGESIZE);
     translate_2_pages(proc->ptref_base, kernel_buf, filename, 1);
     File file;
-    if (getfile(&proc->cwd_file, kernel_buf, &file) < 0) {
+    if (getfile(&proc->cwd_file, kernel_buf, &file, false) < 0) {
         kfree(kernel_buf, 2 * PAGESIZE);
         return -1;
     }
@@ -87,68 +87,69 @@ i64 sys_chdir(const char *filename) {
     kfree(file.super, sizeof(FSFile));
     return 0;
 }
+
 i64 sys_openat(i32 dfd, const char *filename, int flags, int mode) {
     int cpuid = 0;
     PCB *proc = cpus[cpuid].running;
     FSFile *cwd;
-    if (proc->opened_files[dfd].file && proc->opened_files[dfd].file->type == DIRECTORY)
-        cwd = proc->opened_files[dfd].file->super;
-    else {
+    if (proc->opened_files[dfd].occupied && proc->opened_files[dfd].file.type == DIRECTORY)
+        cwd = proc->opened_files[dfd].file.super;
+    else
         cwd = &proc->cwd_file;
-    }
 
-    File *file = kalloc(sizeof(File));
+    int fd;
+    File *file = NULL;
+    for (fd = 0; fd < NUM_FILES; fd++) {
+        if (proc->opened_files[fd].occupied)
+            continue;
+        file = &proc->opened_files[fd].file;
+        proc->opened_files[fd].occupied = true;
+        proc->opened_files[fd].open_flags = flags;
+        proc->opened_files[fd].seek = 0;
+        break;
+    }
+    if (file == NULL)
+        return -1;
+
     char *kernel_filename = kalloc(2 * PAGESIZE);
     translate_2_pages(proc->ptref_base, kernel_filename, filename, 1);
-    i64 res = getfile(cwd, kernel_filename, file);
+    i64 res = getfile(cwd, kernel_filename, file, (flags & O_CREAT) != 0);
     kfree(kernel_filename, 2 * PAGESIZE);
     if (file->type == DIRECTORY && !(flags & O_DIRECTORY)) {
-
         kfree(file->super, sizeof(FSFile));
-        kfree(file, sizeof(File));
         return -1;
     }
     if (file->type != DIRECTORY && (flags & O_DIRECTORY)) {
         if (file->type != DEVICE)
             kfree(file->super, sizeof(FSFile));
-        kfree(file, sizeof(File));
         return -1;
     }
-    if (res < 0) {
-        kfree(file, sizeof(File));
+    if (res < 0)
         return -1;
-    }
+
     // find an empty slot for the fd
-    int fd;
-    for (fd = 0; fd < NUM_FILES; fd++) {
-        if (proc->opened_files[fd].file)
-            continue;
-        proc->opened_files[fd].file = file;
-        proc->opened_files[fd].open_flags = flags;
-        proc->opened_files[fd].seek = 0;
-        return fd;
-    }
+    // since it is first opened, set rc to 1;
     if (file->type != DEVICE)
-        kfree(file->super, sizeof(FSFile));
-    kfree(file, sizeof(File));
-    return -1;
+        ((FSFile *)file->super)->rc = 1;
+
+    return fd;
 }
 
 i64 sys_close(u32 fd) {
     int cpuid = 0;
     PCB *proc = cpus[cpuid].running;
-    if (proc->opened_files[fd].file == NULL) {
+    if (!proc->opened_files[fd].occupied) {
         return -1;
     }
-    if (proc->opened_files[fd].file->type != DEVICE) {
-        kfree(proc->opened_files[fd].file->super, sizeof(FSFile));
-        kfree(proc->opened_files[fd].file, sizeof(File));
-    } else {
-        kfree(proc->opened_files[fd].file, sizeof(File));
+    if (proc->opened_files[fd].file.type != DEVICE) {
+        FSFile *fsfile = proc->opened_files[fd].file.super;
+        fs_file_sync(fsfile);
+        fsfile->rc--;
+        if (fsfile->rc == 0) {
+            kfree(fsfile, sizeof(FSFile));
+        }
     }
-    proc->opened_files[fd].file = NULL;
-    proc->opened_files[fd].open_flags = 0;
-    proc->opened_files[fd].seek = 0;
+    proc->opened_files[fd].occupied = false;
     return 0;
 }
 
@@ -165,7 +166,7 @@ i64 sys_lseek(u32 fd, i64 off_high, i64 off_low, u64 *result, u32 whence) {
     else if (whence == SEEK_CUR)
         proc->opened_files[fd].seek += off_low;
     else if (whence == SEEK_END)
-        proc->opened_files[fd].seek = proc->opened_files[fd].file->size + off_low;
+        proc->opened_files[fd].seek = *proc->opened_files[fd].file.size + off_low;
     else {
         printk("[kernel] Unsupported lseek whence\n");
         return -1;
@@ -188,9 +189,9 @@ i64 sys_lseek(u32 fd, i64 off_high, i64 off_low, u64 *result, u32 whence) {
 i64 sys_read(u32 fd, char *buf, u64 size) {
     int cpuid = 0;
     PCB *proc = cpus[cpuid].running;
-    if (proc->opened_files[fd].file == NULL) {
+    if (!proc->opened_files[fd].occupied)
         return -1;
-    }
+
     FileDescriptor *file_desc = proc->opened_files + fd;
     if (O_ACCMODE(file_desc->open_flags) != O_RDWR && O_ACCMODE(file_desc->open_flags) != O_RDONLY) {
         printk("[kernel] process don't have read permission\n");
@@ -200,7 +201,7 @@ i64 sys_read(u32 fd, char *buf, u64 size) {
 
     // char *kernel_ptr = (char *)ADDR(kernel_vpn, OFFSET(buf));
     int read_res;
-    if ((read_res = wrapped_read(file_desc->file, file_desc->seek, kernel_ptr, size)) < 0) {
+    if ((read_res = wrapped_read(&file_desc->file, file_desc->seek, kernel_ptr, size)) < 0) {
         kfree(kernel_ptr, size);
         return read_res;
     }
@@ -219,7 +220,7 @@ i64 sys_read(u32 fd, char *buf, u64 size) {
 i64 sys_write(u32 fd, const char *buf, u64 size) {
     int cpuid = 0;
     PCB *proc = cpus[cpuid].running;
-    if (proc->opened_files[fd].file == NULL) {
+    if (!proc->opened_files[fd].occupied) {
         return -1;
     }
     FileDescriptor *file_desc = proc->opened_files + fd;
@@ -227,9 +228,9 @@ i64 sys_write(u32 fd, const char *buf, u64 size) {
         printk("[kernel] process don't have write permission\n");
         return -1;
     }
-    if ( file_desc->file->size < file_desc->seek + size) {
+    if (*file_desc->file.size < file_desc->seek + size) {
         if (file_desc->open_flags & O_TRUNC)
-            trunc_file(file_desc->file, size);
+            trunc_file(&file_desc->file, size);
         else {
             printk("[kernel] write to larger filesize without permission to truncate\n");
             return -1;
@@ -240,7 +241,7 @@ i64 sys_write(u32 fd, const char *buf, u64 size) {
 
     // char *kernel_ptr = (char *)ADDR(kernel_vpn, OFFSET(buf));
 
-    wrapped_write(file_desc->file, file_desc->seek, kernel_ptr, size);
+    wrapped_write(&file_desc->file, file_desc->seek, kernel_ptr, size);
 
     // translate kernel buffer to user
 

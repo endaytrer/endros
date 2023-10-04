@@ -3,6 +3,8 @@
 #include <type.h>
 #include "pagetable.h"
 
+#define SYS_DUP      23
+#define SYS_DUP3     24
 #define SYS_CHDIR    49
 #define SYS_OPENAT   56
 #define SYS_CLOSE    57
@@ -26,6 +28,8 @@ typedef struct {
 void translate_buffer(PTReference_2 *ptref_base, void *kernel_buf, void *user_buf, u64 size, bool write);
 // for translating path argument. Read only
 void translate_2_pages(const PTReference_2 *ptref_base, void *kernel_buf, const void *user_buf, int unit_size);
+i64 sys_dup(u32 fd);
+i64 sys_dup3(u32 oldfd, u32 newfd, int flags);
 i64 sys_chdir(const char *filename);
 i64 sys_openat(i32 dfd, const char *filename, int flags, int mode);
 i64 sys_close(u32 fd);

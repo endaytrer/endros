@@ -12,10 +12,11 @@ BlockBuffer *get_block_buffer(BufferedBlockDevice *buffered_blk_dev, u64 block_i
         if (ptr->block_id == block_id) {
             // cache hit
             // make it to first of cache.
-            if (prev)
+            if (prev) { // if it IS head, do not do anything
                 prev->next = ptr->next;
-            ptr->next = buffered_blk_dev->buffer_head;
-            buffered_blk_dev->buffer_head = ptr;
+                ptr->next = buffered_blk_dev->buffer_head;
+                buffered_blk_dev->buffer_head = ptr;
+            }
             return buffered_blk_dev->buffer_head;
         }
         if (ptr->next == NULL) break;
@@ -120,7 +121,7 @@ void wrap_block_buffer_file(File *out, BufferedBlockDevice *in) {
     out->super = in;
     out->type = DEVICE;
     out->permission = PERMISSION_R | PERMISSION_W;
-    out->size = in->size;
+    out->size = &in->size;
     out->read = (i64 (*)(void *, u64, void *, u64)) read_bytes;
     out->write = (i64 (*)(void *, u64, const void *, u64)) write_bytes;
 }

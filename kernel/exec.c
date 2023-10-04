@@ -66,7 +66,7 @@ i64 sys_execve(const char *path, const char *const *argv, const char *const *env
 
 
     File program;
-    if (getfile(&proc->cwd_file, kernel_path, &program) < 0) {
+    if (getfile(&proc->cwd_file, kernel_path, &program, false) < 0) {
         kfree(kernel_path, 2 * PAGESIZE);
         printk("[kernel] Unable to find file\n");
         return -1;

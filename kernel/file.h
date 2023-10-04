@@ -20,15 +20,16 @@ typedef struct {
     FileType type; 
     void *super;
     int permission;
-    u64 size;
+    u64 *size;
     i64 (*read)(void *self, u64 offset, void *buf, u64 size);
     i64 (*write)(void *self, u64 offset, const void *buf, u64 size);
 } File;
 
 typedef struct {
-    File *file;
-    u64 seek;
+    bool occupied;
     int open_flags;
+    File file;
+    u64 seek;
 } FileDescriptor;
 
 i64 wrapped_read(File *file, u64 offset, void *buf, u64 size);

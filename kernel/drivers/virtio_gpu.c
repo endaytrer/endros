@@ -42,6 +42,7 @@ void init_virtio_gpu(VirtIOGPU *gpu, VirtIOHeader *header){
     gpu->y = info->y;
     gpu->width = info->width;
     gpu->height = info->height;
+    gpu->size = info->width * info->height * 4;
     printk(itoa(gpu->width, buf, 10));
     printk("x");
     printk(itoa(gpu->height, buf, 10));
@@ -221,7 +222,7 @@ void wrap_virtio_gpu_file(File *out, VirtIOGPU *in) {
     out->super = in;
     out->type = DEVICE;
     out->permission = PERMISSION_R | PERMISSION_W;
-    out->size = in->width * in->height * 4;
+    out->size = &in->size;
     out->read = (i64(*)(void *, u64, void *, u64))fb_read;
     out->write = (i64(*)(void *, u64, const void *, u64))fb_write;
 }

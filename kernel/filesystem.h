@@ -11,17 +11,28 @@
 #define DIRECT_PTRS         25
 
 #define BITMAP_OFFSET(x) ((x) >> 3)
-#define BITMAP_BIT(x) ((x) & 0x7)
-#define BITMAP_GET(byte, x) ((byte >> BITMAP_BIT(x)) & 1)
-
+#define BITMAP_BITS(x) ((x) & 0x7)
+#define BITMAP_GET(byte, x) (((byte) >> BITMAP_BITS(x)) & 1)
+#define BITMAP_SET(byte_ptr, x) *(byte_ptr) |= (1 << BITMAP_BITS(x))
+#define BITMAP_CLEAR(byte_ptr, x) *(byte_ptr) &= ~(1 << BITMAP_BITS(x))
+#define BITMAP_2_ADDR(offset, byte) (((offset) << 3) | BITMAP_BITS(byte))
 struct filesystem_t;
 
-typedef struct fs_file_t {
+typedef struct {
     FileType type;
-    struct filesystem_t *fs;
+    u32 permission;
+    u64 size_bytes;
+    u32 direct[DIRECT_PTRS];
+    u32 single_ind;
+    u32 double_ind;
+    u32 triple_ind;
+} Inode;
+
+typedef struct fs_file_t {
     u32 inum;
-    int permission;
-    u64 size;
+    u32 rc; // reference count, for freeing after duplicating
+    struct filesystem_t *fs;
+    Inode inode;
 } FSFile;
 
 typedef struct {
@@ -33,15 +44,6 @@ typedef struct {
     u32 root_inode;
 } SuperBlock;
 
-typedef struct {
-    FileType type;
-    u32 permission;
-    u64 size_bytes;
-    u32 direct[DIRECT_PTRS];
-    u32 single_ind;
-    u32 double_ind;
-    u32 triple_ind;
-} Inode;
 
 typedef struct {
     char name[60];
@@ -63,5 +65,11 @@ extern Filesystem rootfs;
 void init_filesystem(VirtIOHeader *blk_header);
 void create_filesystem(Filesystem *filesystem, File *dev);
 void ls(struct fs_file_t *dir);
-i64 getfile(FSFile *cwd, const char *path, File *out);
+i64 getfile(FSFile *cwd, const char *path, File *out, bool create);
+
+i64 create_file(FSFile *parent, const char *filename, File *file);
+i64 allocate_inode(Filesystem *fs);
+i64 free_inode(Filesystem *fs, u32 inum);
+i64 allocate_block(Filesystem *fs);
+i64 free_block(Filesystem *fs, u32 block);
 #endif

@@ -19,35 +19,21 @@ i64 get_inode(const FSFile *file, Inode *out_inode) {
         out_inode, sizeof(Inode));
 }
 i64 fs_file_init(FSFile *file) {
-    Inode inode;
-    if (get_inode(file, &inode) < 0) {
-        return -1;
-    }
-    file->permission = inode.permission;
-    file->size = inode.size_bytes;
-    file->type = inode.type;
-    return 0;
+    return get_inode(file, &file->inode);
 }
 i64 fs_file_sync(const FSFile *file) {
-    Inode inode;
-    if (get_inode(file, &inode) < 0) {
-        return -1;
-    }
-    inode.permission = file->permission;
-    inode.size_bytes = file->size;
-    // do not sync immutable type here
     return wrapped_write(file->fs->device,
         (u64)ADDR(file->fs->inode_table_offset, file->inum * sizeof(Inode)),
-        &inode,
+        &file->inode,
         sizeof(Inode));
 }
 
-void translate_fs(FSFile *file, Inode *inode, u64 offset, void *buffer, u64 size, bool write) {
+void translate_fs(FSFile *file, u64 offset, void *buffer, u64 size, bool write) {
     
     u64 page_offset = OFFSET(offset);
     u64 page_max = page_offset + size;
 
-    for (int id = ADDR_2_PAGE(offset); id < ADDR_2_PAGEUP(offset + size); ++id) {
+    for (u64 id = ADDR_2_PAGE(offset); id < ADDR_2_PAGEUP(offset + size); ++id) {
         u64 temp_page;
         if (page_max > PAGESIZE) {
             temp_page = PAGESIZE;
@@ -58,21 +44,21 @@ void translate_fs(FSFile *file, Inode *inode, u64 offset, void *buffer, u64 size
         u32 phy_page;
         const int ptr_per_page = PAGESIZE / sizeof(u32);
         if (id < DIRECT_PTRS) {
-            phy_page = inode->direct[id];
+            phy_page = file->inode.direct[id];
         } else if (id < DIRECT_PTRS + ptr_per_page) {
             // single indirect
-            id -= DIRECT_PTRS;
-            wrapped_read(file->fs->device, ADDR(inode->single_ind, id * sizeof(u32)), &phy_page, sizeof(u32));
+            u64 read_id = id - DIRECT_PTRS;
+            wrapped_read(file->fs->device, ADDR(file->inode.single_ind, read_id * sizeof(u32)), &phy_page, sizeof(u32));
         } else if (id < DIRECT_PTRS + ptr_per_page + ptr_per_page * ptr_per_page) {
-            id -= DIRECT_PTRS + ptr_per_page;
+            u64 read_id = id - (DIRECT_PTRS + ptr_per_page);
             // (id >> 10) = id / (PAGESIZE / sizeof(u32)) is the index to indirect tables
-            wrapped_read(file->fs->device, ADDR(inode->double_ind, id / ptr_per_page), &phy_page, sizeof(u32));
-            wrapped_read(file->fs->device, ADDR(phy_page, id & (ptr_per_page - 1)), &phy_page, sizeof(u32));
+            wrapped_read(file->fs->device, ADDR(file->inode.double_ind, read_id / ptr_per_page), &phy_page, sizeof(u32));
+            wrapped_read(file->fs->device, ADDR(phy_page, read_id & (ptr_per_page - 1)), &phy_page, sizeof(u32));
         } else {
-            id -= DIRECT_PTRS + ptr_per_page + ptr_per_page * ptr_per_page;
-            wrapped_read(file->fs->device, ADDR(inode->triple_ind, id / ptr_per_page / ptr_per_page), &phy_page, sizeof(u32));
-            wrapped_read(file->fs->device, ADDR(phy_page, (id / ptr_per_page) & (ptr_per_page - 1)), &phy_page, sizeof(u32));
-            wrapped_read(file->fs->device, ADDR(phy_page, id & (ptr_per_page - 1)), &phy_page, sizeof(u32));
+            u64 read_id = id - (DIRECT_PTRS + ptr_per_page + ptr_per_page * ptr_per_page);
+            wrapped_read(file->fs->device, ADDR(file->inode.triple_ind, read_id / ptr_per_page / ptr_per_page), &phy_page, sizeof(u32));
+            wrapped_read(file->fs->device, ADDR(phy_page, (read_id / ptr_per_page) & (ptr_per_page - 1)), &phy_page, sizeof(u32));
+            wrapped_read(file->fs->device, ADDR(phy_page, read_id & (ptr_per_page - 1)), &phy_page, sizeof(u32));
         }
         i64 (*operation)(File *, u64, void *, u64) = write ?
             (i64 (*)(File *, u64, void *, u64))wrapped_write :
@@ -85,29 +71,143 @@ void translate_fs(FSFile *file, Inode *inode, u64 offset, void *buffer, u64 size
 }
 
 i64 fs_file_read(FSFile *file, u64 offset, void *buf, u64 size) {
-    Inode inode;
-    if (get_inode(file, &inode) < 0) {
-        return -1;
-    }
-    translate_fs(file, &inode, offset, buf, size, false);
+    translate_fs(file, offset, buf, size, false);
     return 0;
 }
 
 i64 fs_file_write(FSFile *file, u64 offset, const void *buf, u64 size) {
-    Inode inode;
-    if (get_inode(file, &inode) < 0) {
-        return -1;
+    translate_fs(file, offset, (void *)buf, size, true);
+    return 0;
+}
+
+i64 fs_file_truncate(FSFile *file, u64 newsize) {
+    u64 oldsize = file->inode.size_bytes;
+    if (oldsize == newsize) return 0;
+    u64 old_pages = ADDR_2_PAGEUP(oldsize);
+    u64 new_pages = ADDR_2_PAGEUP(newsize);
+    const int ptr_per_page = PAGESIZE / sizeof(u32);
+    if (old_pages < new_pages) {
+        // allocate new pages
+        i64 block_1st, block_2nd, block_3rd, temp_block;
+        for (;old_pages < new_pages; old_pages++) {
+            if (old_pages < DIRECT_PTRS) {
+                if ((temp_block = allocate_block(file->fs)) < 0)
+                    return -1;
+                file->inode.direct[old_pages] = temp_block;
+
+            } else if (old_pages < DIRECT_PTRS + ptr_per_page) {
+                u64 id = old_pages - DIRECT_PTRS;
+                if (id == 0) {
+                    if ((block_1st = allocate_block(file->fs)) < 0)
+                        return -1;
+                    file->inode.single_ind = block_1st;
+                }
+                if ((temp_block = allocate_block(file->fs)) < 0)
+                    return -1;
+                wrapped_write(file->fs->device, ADDR(file->inode.single_ind, id * sizeof(u32)), &temp_block, sizeof(u32));
+            } else if (old_pages < DIRECT_PTRS + ptr_per_page + ptr_per_page * ptr_per_page) {
+                u64 id = old_pages - (DIRECT_PTRS + ptr_per_page);
+                if (id == 0) {
+                    if ((block_1st = allocate_block(file->fs)) < 0)
+                        return -1;
+                    file->inode.double_ind = block_1st;
+                }
+                if (id % ptr_per_page == 0) {
+                    // the first of second level
+                    if ((block_2nd = allocate_block(file->fs)) < 0)
+                        return -1;
+                    wrapped_write(file->fs->device, ADDR(file->inode.double_ind, id / ptr_per_page), &block_2nd, sizeof(u32));
+                }
+                // if second level page is just allocated, block is set to second level block. 
+                // Otherwise, since (id == 0 && id % ptr_per_page != 0) == false, it is just 0.
+
+                if (!block_2nd) 
+                    wrapped_read(file->fs->device, ADDR(file->inode.double_ind, id / ptr_per_page), &block_2nd, sizeof(u32));
+
+                if ((temp_block = allocate_block(file->fs)) < 0)
+                    return -1;
+                wrapped_write(file->fs->device, ADDR(block_2nd, id % ptr_per_page), &temp_block, sizeof(u32));
+            } else {
+                u64 id = old_pages - (DIRECT_PTRS + ptr_per_page + ptr_per_page * ptr_per_page);
+                if (id == 0) {
+                    if ((block_1st = allocate_block(file->fs)) < 0)
+                        return -1;
+                    file->inode.triple_ind = block_1st;
+                }
+                if (id % (ptr_per_page * ptr_per_page) == 0) {
+                    if ((block_2nd = allocate_block(file->fs)) < 0)
+                        return -1;
+                    wrapped_write(file->fs->device, ADDR(file->inode.triple_ind, id / ptr_per_page / ptr_per_page), &block_2nd, sizeof(u32));
+                }
+                if (!block_2nd) 
+                    wrapped_read(file->fs->device, ADDR(file->inode.triple_ind, id / ptr_per_page / ptr_per_page), &block_2nd, sizeof(u32));
+
+                if (id % ptr_per_page == 0) {
+                    if ((block_3rd = allocate_block(file->fs)) < 0)
+                        return -1;
+                    wrapped_write(file->fs->device, ADDR(block_2nd, (id / ptr_per_page) % ptr_per_page), &block_3rd, sizeof(u32));
+                }
+                if (!block_3rd)
+                    wrapped_read(file->fs->device, ADDR(block_2nd, (id / ptr_per_page) % ptr_per_page), &block_3rd, sizeof(u32));
+                
+                if ((temp_block = allocate_block(file->fs)) < 0)
+                    return -1;
+                wrapped_write(file->fs->device, ADDR(block_3rd, id % ptr_per_page), &temp_block, sizeof(u32));
+            }
+        }
+    } else if (old_pages > new_pages) {
+        for (u64 id = old_pages - 1; id >= new_pages; id--) {
+            u32 block_2nd, block_3rd, temp_block;
+            if (id < DIRECT_PTRS) {
+                free_block(file->fs, file->inode.direct[id]);
+            } else if (id < DIRECT_PTRS + ptr_per_page) {
+                // single indirect
+                u64 read_id = id - DIRECT_PTRS;
+                wrapped_read(file->fs->device, ADDR(file->inode.single_ind, read_id * sizeof(u32)), &temp_block, sizeof(u32));
+                free_block(file->fs, temp_block);
+                if (read_id == 0) 
+                    free_block(file->fs, file->inode.single_ind);
+
+            } else if (id < DIRECT_PTRS + ptr_per_page + ptr_per_page * ptr_per_page) {
+                u64 read_id = id - (DIRECT_PTRS + ptr_per_page);
+                // (id >> 10) = id / (PAGESIZE / sizeof(u32)) is the index to indirect tables
+                wrapped_read(file->fs->device, ADDR(file->inode.double_ind, read_id / ptr_per_page), &block_2nd, sizeof(u32));
+                wrapped_read(file->fs->device, ADDR(block_2nd, read_id & (ptr_per_page - 1)), &temp_block, sizeof(u32));
+                free_block(file->fs, temp_block);
+
+                if (read_id % ptr_per_page == 0)
+                    free_block(file->fs, block_2nd);
+
+                if (read_id == 0)
+                    free_block(file->fs, file->inode.double_ind);
+                
+            } else {
+                u64 read_id = id - (DIRECT_PTRS + ptr_per_page + ptr_per_page * ptr_per_page);
+                wrapped_read(file->fs->device, ADDR(file->inode.triple_ind, read_id / ptr_per_page / ptr_per_page), &block_2nd, sizeof(u32));
+                wrapped_read(file->fs->device, ADDR(block_2nd, (read_id / ptr_per_page) & (ptr_per_page - 1)), &block_3rd, sizeof(u32));
+                wrapped_read(file->fs->device, ADDR(block_3rd, read_id & (ptr_per_page - 1)), &temp_block, sizeof(u32));
+                free_block(file->fs, temp_block);
+                if (read_id % ptr_per_page == 0)
+                    free_block(file->fs, block_3rd);
+
+                if (read_id % (ptr_per_page * ptr_per_page) == 0)
+                    free_block(file->fs, block_2nd);
+                
+                if (read_id == 0)
+                    free_block(file->fs, file->inode.triple_ind);
+            }
+        }
     }
-    translate_fs(file, &inode, offset, (void *)buf, size, false);
-    // since we do not change the file metadata, we do not have to sync.
+    file->inode.size_bytes = newsize;
+    fs_file_sync(file);
     return 0;
 }
 
 void wrap_fsfile(File *out, FSFile *in) {
     out->super = in;
-    out->permission = in->permission;
-    out->size = in->size;
-    out->type = in->type;
+    out->permission = in->inode.permission;
+    out->size = &in->inode.size_bytes;
+    out->type = in->inode.type;
     out->read = (i64 (*)(void *, u64, void *, u64)) fs_file_read;
     out->write = (i64 (*)(void *, u64, const void *, u64)) fs_file_write;
 }

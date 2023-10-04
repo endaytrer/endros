@@ -49,7 +49,12 @@ i64 sys_get_time(TimeVal *ts, u64 _tz) {
 i64 sys_exit(i32 xstate) {
     int cpuid = 0;
     PCB *proc = cpus[cpuid].running;
-
+    // close all opened files
+    for (u32 i = 0; i < NUM_FILES; i++) {
+        if (proc->opened_files[i].occupied) {
+            sys_close(i);
+        }
+    }
     // if it is waited by parent, reschedule parent and set to terminated
     if (proc->flags & FLAGS_WAITED) {
         proc->parent->status = READY;
@@ -127,7 +132,16 @@ i64 sys_fork(void) {
 
     // copy fdt
     new_proc->cwd_file = proc->cwd_file;
-    memcpy(new_proc->opened_files, proc->opened_files, sizeof(new_proc->opened_files));
+    for (u32 i = 0; i < NUM_FILES; i++) {
+        if (!proc->opened_files[i].occupied) {
+            new_proc->opened_files[i].occupied = false;
+            continue;
+        }
+        new_proc->opened_files[i] = proc->opened_files[i];
+        if (proc->opened_files[i].file.type != DEVICE) {
+            ((FSFile *)proc->opened_files[i].file.super)->rc++;
+        }
+    }
 
     return next_pid++;
 }
