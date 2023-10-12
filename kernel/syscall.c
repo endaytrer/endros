@@ -2,6 +2,8 @@
 #include "printk.h"
 
 static void(*syscall_table[])() = {
+    [SYS_DUP]      = (void (*)())sys_dup,
+    [SYS_DUP3]     = (void (*)())sys_dup3,
     [SYS_CHDIR]    = (void (*)())sys_chdir,
     [SYS_OPENAT]   = (void (*)())sys_openat,
     [SYS_CLOSE]    = (void (*)())sys_close,

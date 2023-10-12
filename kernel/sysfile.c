@@ -230,7 +230,7 @@ i64 sys_write(u32 fd, const char *buf, u64 size) {
     }
     if (*file_desc->file.size < file_desc->seek + size) {
         if (file_desc->open_flags & O_TRUNC)
-            trunc_file(&file_desc->file, size);
+            trunc_file(&file_desc->file, file_desc->seek + size);
         else {
             printk("[kernel] write to larger filesize without permission to truncate\n");
             return -1;
@@ -246,5 +246,42 @@ i64 sys_write(u32 fd, const char *buf, u64 size) {
     // translate kernel buffer to user
 
     kfree(kernel_ptr, size);
+    return 0;
+}
+
+
+i64 sys_dup(u32 fd) {
+    int cpuid = 0;
+    PCB *proc = cpus[cpuid].running;
+
+    if (!proc->opened_files[fd].occupied) {
+        return -1;
+    }
+
+    for (int new_fd = 0; new_fd < NUM_FILES; new_fd++) {
+        if (proc->opened_files[new_fd].occupied)
+            continue;
+        proc->opened_files[new_fd] = proc->opened_files[fd];
+        if (proc->opened_files[fd].file.type != DEVICE)
+            ((FSFile *)proc->opened_files[fd].file.super)->rc++;
+        return 0;
+    }
+    return -1;
+}
+
+i64 sys_dup3(u32 old_fd, u32 new_fd, int flags) {
+    int cpuid = 0;
+    PCB *proc = cpus[cpuid].running;
+
+    if (!proc->opened_files[old_fd].occupied)
+        return -1;
+
+    if (proc->opened_files[new_fd].occupied)
+        sys_close(new_fd);
+
+    proc->opened_files[new_fd] = proc->opened_files[old_fd];
+    proc->opened_files[new_fd].open_flags &= flags;
+    if (proc->opened_files[old_fd].file.type != DEVICE)
+        ((FSFile *)proc->opened_files[old_fd].file.super)->rc++;
     return 0;
 }

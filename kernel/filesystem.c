@@ -24,6 +24,15 @@ void init_filesystem(VirtIOHeader *blk_header) {
     wrap_block_buffer_file(&root_block_device, &root_block_buffered_dev);
     create_filesystem(&rootfs, &root_block_device);
 }
+void sync_filesystem(void) {
+    BlockBuffer *ptr = root_block_buffered_dev.buffer_head;
+    while (ptr) {
+        if (ptr->valid && ptr->dirty) {
+            root_block_buffered_dev.write_block(root_block_buffered_dev.super, ptr->block_id * (PAGESIZE / SECTOR_SIZE), ptr->vpn, ptr->pfn);
+        }
+        ptr = ptr->next;
+    }
+}
 void create_filesystem(Filesystem *fs, File *dev) {
 
     // read super block (immutable)

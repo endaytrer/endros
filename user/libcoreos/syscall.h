@@ -3,6 +3,8 @@
 #include <type.h>
 
 
+#define SYS_DUP      23
+#define SYS_DUP3     24
 #define SYS_CHDIR    49
 #define SYS_OPENAT   56
 #define SYS_CLOSE    57
@@ -20,6 +22,14 @@
 #define SYSCALL static inline __attribute__((always_inline)) i64
 
 i64 syscall(u64 id, u64 arg0, u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5, u64 arg6);
+
+SYSCALL sys_dup(u32 fd) {
+    return syscall(SYS_DUP, fd, 0, 0, 0, 0, 0, 0);
+}
+
+SYSCALL sys_dup3(u32 old_fd, u32 new_fd, int flags) {
+    return syscall(SYS_DUP3, old_fd, new_fd, flags, 0, 0, 0, 0);
+}
 
 SYSCALL sys_chdir(const char *filename) {
     return syscall(SYS_CHDIR, (u64)filename, 0, 0, 0, 0, 0, 0);

@@ -189,6 +189,9 @@ void schedule(int cpuid) {
     }
     if (process == NULL) {
         printk("[kernel] All tasks finished!\n");
+        printk("[kernel] Syncing block cache to disk...\n");
+        sync_filesystem();
+        printk("[kernel] Syncing completed!\n");
         shutdown();
     }
     run(cpuid, process);

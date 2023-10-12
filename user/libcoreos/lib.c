@@ -1,9 +1,9 @@
 #include "lib.h"
 #include "syscall.h"
-i64 read(u64 fd, char *buffer, u64 size) {
+i64 read(u32 fd, char *buffer, u64 size) {
     return sys_read(fd, buffer, size);
 }
-i64 write(u64 fd, const char *buffer, u64 size) {
+i64 write(u32 fd, const char *buffer, u64 size) {
     return sys_write(fd, buffer, size);
 }
 
@@ -47,11 +47,11 @@ i64 open(const char *path, int flags, int mode) {
     return sys_openat(0, path, flags, mode);
 }
 
-i64 close(int fd) {
+i64 close(u32 fd) {
     return sys_close(fd);
 }
 
-i64 lseek(int fd, i64 offset, u32 whence) {
+i64 lseek(u32 fd, i64 offset, u32 whence) {
     u64 res;
     int ret = sys_lseek(fd, 0, offset, &res, whence);
     if (ret < 0) return ret;
@@ -84,4 +84,14 @@ extern int main(int, const char *const *, const char *const *);
 
 void _start(int argc, const char *const *argv, const char *const *envp) {
     exit(main(argc, argv, envp));
+}
+
+i64 dup(u32 fd) {
+    return sys_dup(fd);
+}
+i64 dup2(u32 old_fd, u32 new_fd) {
+    return sys_dup3(old_fd, new_fd, -1);
+}
+i64 dup3(u32 old_fd, u32 new_fd, int flags) {
+    return sys_dup3(old_fd, new_fd, flags);
 }

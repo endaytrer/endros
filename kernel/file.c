@@ -26,11 +26,8 @@ i64 wrapped_write(File *file, u64 offset, const void *buf, u64 size) {
 }
 
 i64 trunc_file(File *file, u64 size) {
-    if (file->type != DEVICE) {
-        // is a fs_file
-        fs_file_truncate(file->super, size);
-        fs_file_sync(file->super);
-        return 0;
-    }
+    if (file->type != DEVICE)
+        return fs_file_truncate(file->super, size); // is a fs_file
+
     return -1;
 }

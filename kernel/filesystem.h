@@ -64,6 +64,7 @@ typedef struct filesystem_t {
 extern Filesystem rootfs;
 void init_filesystem(VirtIOHeader *blk_header);
 void create_filesystem(Filesystem *filesystem, File *dev);
+void sync_filesystem(void);
 void ls(struct fs_file_t *dir);
 i64 getfile(FSFile *cwd, const char *path, File *out, bool create);
 

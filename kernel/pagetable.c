@@ -8,7 +8,7 @@ pfn_t pfn_start;
 pfn_t pt_base;
 static pte_t *kpgdir = (pte_t *)0x1000;
 
-FreeNode *freelist = NULL;
+FreeNode *vfreelist = NULL;
 FreeNode *pfreelist = NULL;
 
 // managed memory space.
@@ -44,6 +44,33 @@ pfn_t palloc() {
         panic("[kernel] cannot allocate more pages\n");
     }
     return pfn_start++;
+}
+
+pfn_t palloc_ptr(vpn_t vpn, u64 flags) {
+    // Allocate one physical page to virtual page vpn. One have to manage the space once allocated.
+    if (pfreelist) {
+        pfn_t pfn = pfreelist->pfn;
+        FreeNode *next = pfreelist->next;
+        ptunmap(ADDR_2_PAGE(pfreelist));
+        pfreelist = next;
+        ptmap(vpn, pfn, flags);
+        memset((void *)PAGE_2_ADDR(vpn), 0, PAGESIZE);
+        return pfn;
+    }
+    if (pfn_start >= max_pfn) {
+        panic("[kernel] cannot allocate more pages\n");
+    }
+    pfn_t pfn = pfn_start++;
+    ptmap(vpn, pfn, flags);
+    memset((void *)PAGE_2_ADDR(vpn), 0, PAGESIZE);
+    return pfn;
+}
+
+void pfree(pfn_t pfn, vpn_t vpn) {
+    FreeNode *temp = pfreelist;
+    pfreelist = (FreeNode *)PAGE_2_ADDR(vpn);
+    pfreelist->pfn = pfn;
+    pfreelist->next = temp;
 }
 
 FreeNode *ptfreelist = NULL;
@@ -82,15 +109,19 @@ pfn_t dmalloc(vpn_t *out_vpn, u64 pages, bool zeroing) {
         prev = p;
         p = p->next;
     }
-    if (pfn_start + pages > max_pfn) {
-        panic("[kernel] cannot allocate more pages\n");
-    }
+    // if there is only one page to allocate, reuse freed pages by palloc_ptr();
 
     void *ans = ptbrk;
     vpn_t vpn = ADDR_2_PAGE(ptbrk);
     *out_vpn = vpn;
-    pfn_t pfn = pfn_start;
     ptbrk = (void *)((u64)ptbrk + pages * PAGESIZE);
+    if (pages == 1) 
+        return palloc_ptr(vpn, PTE_VALID | PTE_READ | PTE_WRITE);
+    
+    if (pfn_start + pages > max_pfn)
+        panic("[kernel] cannot allocate more pages\n");
+    
+    pfn_t pfn = pfn_start;
     pfn_start += pages;
     // the pages need to be claimed before using ptmap.
     for (u64 i = 0; i < pages; i++) {
@@ -110,59 +141,6 @@ void dmafree(pfn_t pfn, vpn_t vpn, u64 pages) {
     ptfreelist = free_head;
 }
 
-// pfn_t uptalloc(vpn_t *out_vpn) {
-//     // allocate user page table
-//     if (ptfreelist) {
-//         // since every uptalloc have same flags, no need to unmap / remap
-//         pfn_t pfn = ptfreelist->pfn;
-//         FreeNode *next = ptfreelist->next;
-//         vpn_t vpn = ADDR_2_PAGE(ptfreelist);
-//         memset(ptfreelist, 0, PAGESIZE);
-//         ptfreelist = next;
-//         *out_vpn = vpn;
-//         return pfn;
-//     }
-//     vpn_t vpn = ADDR_2_PAGE(ptbrk);
-//     pfn_t pfn = palloc_ptr(vpn, PTE_VALID | PTE_READ | PTE_WRITE);
-//     ptbrk += PAGESIZE;
-//     *out_vpn = vpn;
-//     return pfn;
-// }
-
-// void uptfree(pfn_t pfn, vpn_t vpn) {
-//     // free user page table
-//     FreeNode *temp = ptfreelist;
-//     ptfreelist = (FreeNode *)PAGE_2_ADDR(vpn);
-//     ptfreelist->pfn = pfn;
-//     ptfreelist->next = temp;
-// }
-
-pfn_t palloc_ptr(vpn_t vpn, u64 flags) {
-    // Allocate one physical page to virtual page vpn. One have to manage the space once allocated.
-    if (pfreelist) {
-        pfn_t pfn = pfreelist->pfn;
-        FreeNode *next = pfreelist->next;
-        ptunmap(ADDR_2_PAGE(pfreelist));
-        pfreelist = next;
-        ptmap(vpn, pfn, flags);
-        memset((void *)PAGE_2_ADDR(vpn), 0, PAGESIZE);
-        return pfn;
-    }
-    if (pfn_start >= max_pfn) {
-        panic("[kernel] cannot allocate more pages\n");
-    }
-    pfn_t pfn = pfn_start++;
-    ptmap(vpn, pfn, flags);
-    memset((void *)PAGE_2_ADDR(vpn), 0, PAGESIZE);
-    return pfn;
-}
-
-void pfree(pfn_t pfn, vpn_t vpn) {
-    FreeNode *temp = pfreelist;
-    pfreelist = (FreeNode *)PAGE_2_ADDR(vpn);
-    pfreelist->pfn = pfn;
-    pfreelist->next = temp;
-}
 
 void *kalloc(u64 size) {
     // Although not recommended, the caller may use more than size.
@@ -170,7 +148,7 @@ void *kalloc(u64 size) {
     if (size == 0) return NULL;
     u64 pages = ADDR_2_PAGEUP(size);
 
-    FreeNode *p = freelist, *prev = NULL;
+    FreeNode *p = vfreelist, *prev = NULL;
     while (p != NULL) {
         if (p->size > pages) {
             FreeNode *newp = (FreeNode *)((u64)p + pages * PAGESIZE);
@@ -179,14 +157,14 @@ void *kalloc(u64 size) {
             if (prev)
                 prev->next = newp;
             else
-                freelist = newp;
+                vfreelist = newp;
             memset(p, 0, pages * PAGESIZE);
             return p;
         } else if (p->size == pages) {
             if (prev)
                 prev->next = p->next;
             else
-                freelist = p->next;
+                vfreelist = p->next;
             memset(p, 0, pages * PAGESIZE);
             return p;
         }
@@ -209,8 +187,8 @@ void kfree(void *ptr, u64 size) {
     // lazy approach, leave fragments
     FreeNode *free_head = (FreeNode *)ptr;
     free_head->size = pages;
-    free_head->next = freelist;
-    freelist = free_head;
+    free_head->next = vfreelist;
+    vfreelist = free_head;
 }
 vpn_t walkupt(const PTReference_2 *ptref_base, vpn_t user_vpn) {
     /* walk in user page table

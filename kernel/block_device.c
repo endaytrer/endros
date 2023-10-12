@@ -93,6 +93,7 @@ void translate_bytes(BufferedBlockDevice *buffered_blk_dev, u64 offset, void *bu
                 else
                     ptr->valid = true;
             }
+            ptr->dirty = true;
             memcpy((void *)ADDR(ptr->vpn, page_offset), buffer, temp_page - page_offset);
         } else {
             if (!ptr->valid) {
