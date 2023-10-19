@@ -22,9 +22,7 @@ void trap_return(int cpuid) {
     extern void __restore();
     u64 token = ((u64)1 << 63) | cpus[cpuid].running->ptbase_pfn;
     void (*restore)(void *trap_context, u64 user_token) = (void (*)(void *, u64))(TRAMPOLINE + (u64)__restore - (u64)strampoline);
-    asm volatile (
-        "fence.i"
-    );
+    __sync_synchronize();
     restore(TRAPFRAME, token);
 }
 void trap_handler(void) {

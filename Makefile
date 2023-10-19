@@ -33,7 +33,7 @@ UTIL := utils
 UTIL_C_SRCS := $(wildcard $(UTIL)/*.c)
 UTIL_C_HDRS := $(wildcard $(UTIL)/*.h)
 
-CFLAGS := -march=rv64gc_zifencei -Wall -ffreestanding -nostdlib -fno-omit-frame-pointer -g -O2 -I$(UTIL)
+CFLAGS := -Wall -ffreestanding -nostdlib -fno-omit-frame-pointer -g -O2 -I$(UTIL)
 
 # Kernel
 KERNEL := kernel
