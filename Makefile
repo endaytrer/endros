@@ -16,24 +16,28 @@ CC := $(PREFIX)gcc
 LD := $(PREFIX)ld
 AS := $(PREFIX)as
 AR := $(PREFIX)ar
-GDB := $(PREFIX)gdb
+GDB := gf2
 OBJCOPY := $(PREFIX)objcopy
-
-QEMU := qemu-system-riscv64
-QEMUOPTS := -machine virt
-ifdef DEBUG
-QEMUOPTS += -s -S
-endif
-
-
-
 
 # Utils. Compile both to kernel and user lib.
 UTIL := utils
 UTIL_C_SRCS := $(wildcard $(UTIL)/*.c)
 UTIL_C_HDRS := $(wildcard $(UTIL)/*.h)
 
-CFLAGS := -Wall -ffreestanding -nostdlib -fno-omit-frame-pointer -g -O2 -I$(UTIL)
+CFLAGS := -Wall -ffreestanding -nostdlib -fno-omit-frame-pointer -g -I$(UTIL)
+
+QEMU := qemu-system-riscv64
+QEMUOPTS := -machine virt
+ifdef DEBUG
+CFLAGS += -O0
+QEMUOPTS += -s -S
+else
+CLFAGS += -0
+endif
+
+
+
+
 
 # Kernel
 KERNEL := kernel

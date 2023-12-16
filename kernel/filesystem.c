@@ -7,6 +7,7 @@
 #include "printk.h"
 #include "machine_spec.h"
 #include "stdio.h"
+#include "fs_file.h"
 
 Filesystem rootfs;
 
@@ -45,9 +46,8 @@ void create_filesystem(Filesystem *fs, File *dev) {
 
     fs->root.fs = fs;
     fs->root.inum = fs->super.root_inode;
-    fs_file_init(&fs->root);
     File outfile;
-    getfile(&fs->root, "/dev", &outfile, false);
+    getfile(&fs->root, "/dev", &outfile, true);
     memcpy(&fs->dev, outfile.super, sizeof(FSFile));
     kfree(outfile.super, sizeof(FSFile));
 }
@@ -70,8 +70,10 @@ i64 getfile(FSFile *cwd, const char *path, File *out, bool create) {
     const char *end = ptr;
 
     FSFile *fileout = kalloc(sizeof(FSFile));
+    Inode cwd_inode;
     while (*end != '\0') {
-        if (cwd->inode.type != DIRECTORY) {
+        get_inode(cwd, &cwd_inode);
+        if (cwd_inode.type != DIRECTORY) {
             printk("[kernel] not a directory");
             return -1;
         }
@@ -80,9 +82,9 @@ i64 getfile(FSFile *cwd, const char *path, File *out, bool create) {
 
         u64 name_size = end - ptr;
         // find the inode of entry
-        DirEntry *entries = kalloc(cwd->inode.size_bytes);
-        fs_file_read(cwd, 0, entries, cwd->inode.size_bytes);
-        u64 dir_size = cwd->inode.size_bytes;
+        DirEntry *entries = kalloc(cwd_inode.size_bytes);
+        fs_file_read(cwd, 0, entries, cwd_inode.size_bytes);
+        u64 dir_size = cwd_inode.size_bytes;
         bool found = false;
 
         for (int i = 0; i < dir_size / sizeof(DirEntry); i++) {
@@ -90,8 +92,6 @@ i64 getfile(FSFile *cwd, const char *path, File *out, bool create) {
 
                 fileout->fs = cwd->fs;
                 fileout->inum = entries[i].inode;
-
-                fs_file_init(fileout);
 
                 found = true;
                 break;
@@ -212,8 +212,9 @@ i64 free_block(Filesystem *fs, u32 block_id) {
 /// \param file
 /// \return
 i64 create_file(FSFile *parent, const char *filename, File *file) {
-
-    u64 old_size = parent->inode.size_bytes;
+    Inode parent_inode;
+    get_inode(parent, &parent_inode);
+    u64 old_size = parent_inode.size_bytes;
     if (fs_file_truncate(parent, old_size + sizeof(DirEntry)) < 0) {
         return -1;
     }
@@ -227,20 +228,20 @@ i64 create_file(FSFile *parent, const char *filename, File *file) {
     u64 len = strlen(filename);
     if (sizeof(dir_entry.name) < len)
         len = sizeof(dir_entry.name);
-
+    memset(dir_entry.name, 0, sizeof(dir_entry.name));
     memcpy(dir_entry.name, filename, len);
     fs_file_write(parent, old_size, &dir_entry, sizeof(DirEntry));
 
     // write the inode
     FSFile *fsfile = kalloc(sizeof(FSFile));
+    Inode inode;
     fsfile->fs = parent->fs;
     fsfile->inum = dir_entry.inode;
     fsfile->rc = 0;
-    fsfile->inode.size_bytes = 0;
-    fsfile->inode.type = FILE;
-    fsfile->inode.permission = PERMISSION_R | PERMISSION_W;
-
-    fs_file_sync(fsfile);
+    inode.size_bytes = 0;
+    inode.type = FILE;
+    inode.permission = PERMISSION_R | PERMISSION_W;
+    fs_file_sync(fsfile, &inode);
     wrap_fsfile(file, fsfile);
     return 0;
 }

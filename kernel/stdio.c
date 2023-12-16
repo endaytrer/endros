@@ -3,7 +3,7 @@
 #include "sbi.h"
 
 i64 stdin_read(void *self, u64 offset, void *buf, u64 size) {
-    if (offset != 0 || size != 1) {
+    if (size != 1) {
         return -1;
     }
     *(char *)buf = kgetc();
@@ -11,9 +11,6 @@ i64 stdin_read(void *self, u64 offset, void *buf, u64 size) {
 }
 
 i64 stdout_write(void *self, u64 offset, const void *buf, u64 size) {
-    if (offset != 0) {
-        return -1;
-    }
     for (u64 i = 0; i < size; i++) {
         if (((char *)buf)[i] == '\0') return 0;
         kputc(((char *)buf)[i]);
@@ -22,28 +19,39 @@ i64 stdout_write(void *self, u64 offset, const void *buf, u64 size) {
 }
 static const u64 std_size = ~((u64)0);
 
+
+u64 static_size(const void *_) {
+    return std_size;
+}
+
 File stdin = {
-    .permission = PERMISSION_R,
+    .get_permission = static_r,
+    .set_permission = NULL,
     .type = DEVICE,
     .super = NULL,
     .read = stdin_read,
     .write = NULL,
-    .size = (u64 *)&std_size,
+    .get_size = static_size,
+    .set_size = NULL
 };
 
 File stdout = {
-    .permission = PERMISSION_W,
+    .get_permission = static_w,
+    .set_permission = NULL,
     .type = DEVICE,
     .super = NULL,
     .read = NULL,
     .write = stdout_write,
-    .size = (u64 *)&std_size,
+    .get_size = static_size,
+    .set_size = NULL,
 };
 
 File stderr = {
-    .permission = PERMISSION_W,
+    .get_permission = static_w,
+    .set_permission = NULL,
     .type = DEVICE,
     .read = NULL,
     .write = stdout_write,
-    .size = (u64 *)&std_size,
+    .get_size = static_size,
+    .set_size = NULL
 };

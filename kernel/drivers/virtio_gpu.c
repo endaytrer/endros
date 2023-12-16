@@ -218,11 +218,18 @@ i64 fb_write(VirtIOGPU *gpu, u64 offset, const void *data, u64 len) {
 
 }
 
+u64 get_gpu_size(const void *self) {
+    return ((const VirtIOGPU *)self)->size;
+}
+
 void wrap_virtio_gpu_file(File *out, VirtIOGPU *in) {
     out->super = in;
     out->type = DEVICE;
-    out->permission = PERMISSION_R | PERMISSION_W;
-    out->size = &in->size;
+    out->get_permission = static_rw;
+    out->set_permission = NULL;
+    out->get_size = get_gpu_size;
+    out->set_size = NULL; // cannot set gpu size
+
     out->read = (i64(*)(void *, u64, void *, u64))fb_read;
     out->write = (i64(*)(void *, u64, const void *, u64))fb_write;
 }

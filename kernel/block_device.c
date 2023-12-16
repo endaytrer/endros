@@ -118,11 +118,17 @@ i64 write_bytes(BufferedBlockDevice *buffered_blk_dev, u64 offset, const void *b
     translate_bytes(buffered_blk_dev, offset, (void *)buffer, size, true);
     return 0;
 }
+u64 get_blk_size(const void *self) {
+    return ((const BufferedBlockDevice *)self)->size;
+}
+
 void wrap_block_buffer_file(File *out, BufferedBlockDevice *in) {
     out->super = in;
     out->type = DEVICE;
-    out->permission = PERMISSION_R | PERMISSION_W;
-    out->size = &in->size;
+    out->get_permission = static_rw;
+    out->set_permission = NULL;
+    out->get_size = get_blk_size;
+    out->set_size = NULL; // cannot set device size;
     out->read = (i64 (*)(void *, u64, void *, u64)) read_bytes;
     out->write = (i64 (*)(void *, u64, const void *, u64)) write_bytes;
 }

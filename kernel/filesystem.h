@@ -32,7 +32,7 @@ typedef struct fs_file_t {
     u32 inum;
     u32 rc; // reference count, for freeing after duplicating
     struct filesystem_t *fs;
-    Inode inode;
+    // Inode inode; // get inode whenever use to keep sync
 } FSFile;
 
 typedef struct {

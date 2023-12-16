@@ -34,8 +34,9 @@ i64 load_process(PCB *process, File *program) {
     uptmap(ptbase_vpn, ptref_base, 0, ADDR_2_PAGE(TRAMPOLINE), ADDR_2_PAGE(strampoline), PTE_VALID | PTE_READ | PTE_EXECUTE);
 
     // since it is easier to deal with continuous virtual addresses, use kalloc.
-    void *buf = kalloc(*program->size);
-    wrapped_read(program, 0, buf, *program->size);
+    u64 size = program->get_size(program->super);
+    void *buf = kalloc(size);
+    wrapped_read(program, 0, buf, size);
     Elf64_Ehdr *elf_header = (Elf64_Ehdr *)buf;
     vpn_t max_vpn = 0;
     for (int i = 0; i < elf_header->e_phnum; i++) {
@@ -139,7 +140,6 @@ void init_scheduler(void) {
     // set cwd to be /
     process->cwd_file.fs = &rootfs;
     process->cwd_file.inum = rootfs.super.root_inode;
-    fs_file_init(&process->cwd_file);
 
     // set opened files to be [STDIN, STDOUT, STDERR]
     memset(process->opened_files, 0, sizeof(process->opened_files));

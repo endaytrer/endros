@@ -8,10 +8,10 @@
             "name": "(gdb) Attach",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/coreos",
+            "program": "${workspaceFolder}/endros",
             "cwd": "${workspaceFolder}",
             "MIMode": "gdb",
-            "miDebuggerPath": "riscv64-elf-gdb",
+            "miDebuggerPath": "gdb-multiarch",
             "args": ["-ex", "'target remote localhost:1234'"],
             "setupCommands": [
                 {

@@ -72,7 +72,8 @@ i64 sys_execve(const char *path, const char *const *argv, const char *const *env
         return -1;
     }
     kfree(kernel_path, 2 * PAGESIZE);
-    if (program.type == DIRECTORY || (program.permission & PERMISSION_X) == 0 || (program.permission & PERMISSION_R) == 0) {
+    u32 permission = program.get_permission(program.super);
+    if (program.type == DIRECTORY || (permission & PERMISSION_X) == 0 || (permission & PERMISSION_R) == 0) {
         printk("[kernel] Program not executable\n");
         goto free_args;
     }

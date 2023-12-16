@@ -96,7 +96,7 @@ i64 sys_openat(i32 dfd, const char *filename, int flags, int mode) {
         cwd = proc->opened_files[dfd].file.super;
     else
         cwd = &proc->cwd_file;
-
+    
     int fd;
     File *file = NULL;
     for (fd = 0; fd < NUM_FILES; fd++) {
@@ -143,7 +143,6 @@ i64 sys_close(u32 fd) {
     }
     if (proc->opened_files[fd].file.type != DEVICE) {
         FSFile *fsfile = proc->opened_files[fd].file.super;
-        fs_file_sync(fsfile);
         fsfile->rc--;
         if (fsfile->rc == 0) {
             kfree(fsfile, sizeof(FSFile));
@@ -166,7 +165,7 @@ i64 sys_lseek(u32 fd, i64 off_high, i64 off_low, u64 *result, u32 whence) {
     else if (whence == SEEK_CUR)
         proc->opened_files[fd].seek += off_low;
     else if (whence == SEEK_END)
-        proc->opened_files[fd].seek = *proc->opened_files[fd].file.size + off_low;
+        proc->opened_files[fd].seek = proc->opened_files[fd].file.get_size(proc->opened_files[fd].file.super) + off_low;
     else {
         printk("[kernel] Unsupported lseek whence\n");
         return -1;
@@ -228,7 +227,7 @@ i64 sys_write(u32 fd, const char *buf, u64 size) {
         printk("[kernel] process don't have write permission\n");
         return -1;
     }
-    if (*file_desc->file.size < file_desc->seek + size) {
+    if (file_desc->file.get_size(file_desc->file.super) < file_desc->seek + size) {
         if (file_desc->open_flags & O_TRUNC)
             trunc_file(&file_desc->file, file_desc->seek + size);
         else {
@@ -246,6 +245,9 @@ i64 sys_write(u32 fd, const char *buf, u64 size) {
     // translate kernel buffer to user
 
     kfree(kernel_ptr, size);
+
+    // adding seek
+    file_desc->seek += size;
     return 0;
 }
 
