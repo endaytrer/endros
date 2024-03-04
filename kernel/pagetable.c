@@ -4,6 +4,7 @@
 #include "pagetable.h"
 #include "machine_spec.h"
 
+extern void ekernel();
 pfn_t pfn_start;
 pfn_t pt_base;
 static pte_t *kpgdir = (pte_t *)0x1000;
@@ -43,6 +44,9 @@ pfn_t palloc() {
     if (pfn_start >= max_pfn) {
         panic("[kernel] cannot allocate more pages\n");
     }
+    char buf[64];
+    printk(itoa(pfn_start, buf, 16));
+    printk("\n");
     return pfn_start++;
 }
 
@@ -448,7 +452,7 @@ void ptmap_physical(vpn_t vpn, pfn_t pfn, u64 flags) {
             temp_pfn = GET_PFN(pte);
         }
     }
-    pte = (pte_t *)ADDR(temp_pfn,VPN(0, vpn) << 3);
+    pte = (pte_t *)ADDR(temp_pfn, VPN(0, vpn) << 3);
     *pte = PTE(pfn, flags);
 }
 
@@ -464,7 +468,6 @@ void init_pagetable(void) {
     extern void sdata();
     extern void ebss();
 
-    extern void ekernel();
     // map recursive page table
     pfn_start = ADDR_2_PAGE(ekernel);
     pt_base = palloc();
@@ -477,18 +480,32 @@ void init_pagetable(void) {
     *(pte_t *)ADDR(pt_base, 0x008) = PTE(pt_base, PTE_VALID | PTE_READ | PTE_WRITE);
     
     // map kernel code identically with r-x
+    char buf[64];
+    printk("text size=");
+    printk(itoa(ADDR_2_PAGEUP(etext) - ADDR_2_PAGE(stext), buf, 10));
+    printk("pages\n");
     for (pfn_t pfn = ADDR_2_PAGE(stext); pfn < ADDR_2_PAGEUP(etext); ++pfn) {
         ptmap_physical(pfn, pfn, PTE_VALID | PTE_READ | PTE_EXECUTE);
     }
     // map kernel rodata identically with r--
+
+    printk("\nrodata size=");
+    printk(itoa(ADDR_2_PAGEUP(erodata) - ADDR_2_PAGE(srodata), buf, 10));
+    printk("pages\n");
     for (pfn_t pfn = ADDR_2_PAGE(srodata); pfn < ADDR_2_PAGEUP(erodata); ++pfn) {
         ptmap_physical(pfn, pfn, PTE_VALID | PTE_READ);
     }
     // map kernel data and bss identically with rw-
+
+    printk("\ndata / bss size=");
+    printk(itoa(ADDR_2_PAGEUP(ebss) - ADDR_2_PAGE(sdata), buf, 10));
+    printk("pages\n");
     for (pfn_t pfn = ADDR_2_PAGE(sdata); pfn < ADDR_2_PAGEUP(ebss); ++pfn) {
         ptmap_physical(pfn, pfn, PTE_VALID | PTE_READ | PTE_WRITE);
     }
     // map trampoline with r-x
+
+    printk("\ntrapoline:\n");
     ptmap_physical(ADDR_2_PAGE(TRAMPOLINE), ADDR_2_PAGE(strampoline), PTE_VALID | PTE_READ | PTE_EXECUTE);
 
     // identical map virtio devices
@@ -496,11 +513,14 @@ void init_pagetable(void) {
         ptmap_physical(ADDR_2_PAGE(virtio_mmio_headers[i]), ADDR_2_PAGE(virtio_mmio_headers[i]), PTE_VALID | PTE_READ | PTE_WRITE);
     }
 
+    printk("[kernel] activating paging...\n");
     // activate paging
-    u64 token = ((u64)1 << 63) | pt_base;
+    register u64 token = ((u64)1 << 63) | pt_base;
+
     asm volatile(
-        "csrw satp, %0\n\t"
+        "csrw satp, %0\n"
         "sfence.vma"
         :: "r" (token)
     );
+    printk("[kernel] activation success\n");
 }

@@ -1,6 +1,7 @@
 **/*.o
 .config
 endros
+endros.itb
 *.img
 kernel/machine.h
 rootfs/bin/*

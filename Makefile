@@ -16,8 +16,9 @@ CC := $(PREFIX)gcc
 LD := $(PREFIX)ld
 AS := $(PREFIX)as
 AR := $(PREFIX)ar
-GDB := gf2
+GDB := gdb
 OBJCOPY := $(PREFIX)objcopy
+MKIMAGE := mkimage
 
 # Utils. Compile both to kernel and user lib.
 UTIL := utils
@@ -41,6 +42,7 @@ endif
 
 # Kernel
 KERNEL := kernel
+FIT_IMG := endros.itb
 KERNEL_C_SRCS := $(wildcard $(KERNEL)/*.c)
 KERNEL_ASM_SRCS := $(wildcard $(KERNEL)/*.S)
 
@@ -102,7 +104,7 @@ GENHDRS := $(SCRIPT)/genhdrs.py
 DEFCONF := defconf
 CONFIG := .config
 
-.PHONY: all qemu libcoreos kernel user defconfig cleanall clean cleanconfig
+.PHONY: all fit qemu libcoreos kernel user defconfig cleanall clean cleanconfig
 
 all: kernel user
 
@@ -115,6 +117,14 @@ defconfig:
 
 # Compiling kernel
 kernel: $(KERNEL_BIN)
+
+fit: $(FIT_IMG)
+
+ITS := endros.its
+DTB := u-boot.dtb
+
+$(FIT_IMG): $(ITS) $(KERNEL_BIN) $(DTB)
+	$(MKIMAGE) -f $< $@
 
 $(KERNEL_BIN): $(KERNEL_ELF)
 	$(OBJCOPY) $^ -O binary $@
@@ -205,6 +215,7 @@ cleanall: clean cleanconfig
 
 clean:
 	rm -f $(KERNEL_ELF) \
+	$(FIT_IMG) \
 	*.img \
 	$(KERNEL)/*.o \
 	$(USER_LIB)/*.o \

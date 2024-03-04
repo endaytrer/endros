@@ -1,5 +1,6 @@
 #include <string.h>
 #include "fdt.h"
+#include "printk.h"
 #include "drivers/virtio.h"
 #include "machine_spec.h"
 /// @brief  A push-down state machine to parse flattened devicetree.

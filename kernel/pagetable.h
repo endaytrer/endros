@@ -4,7 +4,7 @@
 
 #define PTE_DIRTY    0x80
 #define PTE_ACCESSED 0x40
-#define PTE_G        0x20
+#define PTE_GLOBAL   0x20
 #define PTE_USER     0x10
 #define PTE_EXECUTE  0x08
 #define PTE_WRITE    0x04
